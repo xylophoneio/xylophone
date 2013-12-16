@@ -1,4 +1,13 @@
 ###################
+What is Xylophone
+###################
+
+Xylophone is a fork of CodeIgniter designed to improve upon the release cycle
+and drivers/libraries that otherwise wouldn't make it into the offical release
+while still having the ability to take security/performance updates from CodeIgniter
+and dropping the support for PHP 5.2.x.
+
+###################
 What is CodeIgniter
 ###################
 
@@ -29,7 +38,7 @@ guide change log <https://github.com/EllisLab/CodeIgniter/blob/develop/user_guid
 Server Requirements
 *******************
 
--  PHP version 5.2.4 or newer.
+-  PHP version 5.3 or newer.
 
 ************
 Installation
