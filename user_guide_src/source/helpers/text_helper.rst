@@ -170,9 +170,18 @@ Example::
 	$string = "Here is a nice text string about nothing in particular.";
 	echo highlight_phrase($string, "nice text", '<span style="color:#990000;">', '</span>');
 
-The above code prints::
+The above code returns::
 
 	Here is a <span style="color:#990000;">nice text</span> string about nothing in particular.
+
+Note, this function used to use the ``<strong>`` tag by default, as of Xylophone 1.0 the default
+tag is the HTML5 ``<mark>`` tag. Older browsers may not have built in styling for this tag so it is
+recommended you insert the following CSS into your stylesheet if you need to support these browsers::
+
+	mark {
+		background: #ff0;
+		color: #000;
+	}
 
 word_wrap()
 ===========

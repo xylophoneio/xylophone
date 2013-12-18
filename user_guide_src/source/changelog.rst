@@ -118,6 +118,10 @@ Release Date: Not Released
       - Added an optional paramater to :php:func:`delete_files()` to enable it to skip deleting files such as *.htaccess* and *index.html*.
       - Deprecated function ``read_file()`` - it's just an alias for PHP's native ``file_get_contents()``.
 
+   -  :doc:`Text Helper <helpers/text_helper>` changes include:
+
+      - ``highlight_phrase()`` now returns a ``<mark>`` tag by default (changed from ``<strong>``).
+
    -  :doc:`String Helper <helpers/string_helper>` changes include:
 
       - Deprecated function ``repeater()`` - it's just an alias for PHP's native ``str_repeat()``.
