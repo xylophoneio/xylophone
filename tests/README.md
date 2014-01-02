@@ -1,6 +1,6 @@
-# CodeIgniter Unit Tests #
+# Xylophone Unit Tests #
 
-Status : [![Build Status](https://secure.travis-ci.org/EllisLab/CodeIgniter.png?branch=develop)](http://travis-ci.org/EllisLab/CodeIgniter)
+Status : [![Build Status](https://secure.travis-ci.org/xylophoneio/xylophone.png?branch=master)](http://travis-ci.org/xylophoneio/xylophone)
 
 ### Introduction:
 
