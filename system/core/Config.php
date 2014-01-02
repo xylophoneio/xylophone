@@ -1,29 +1,32 @@
 <?php
 /**
- * CodeIgniter
+ * Xylophone
  *
- * An open source application development framework for PHP 5.2.4 or newer
+ * An open source HMVC application development framework for PHP 5.3 or newer
+ * Derived from CodeIgniter, Copyright (c) 2008 - 2013, EllisLab, Inc. (http://ellislab.com/)
  *
  * NOTICE OF LICENSE
  *
  * Licensed under the Open Software License version 3.0
  *
  * This source file is subject to the Open Software License (OSL 3.0) that is
- * bundled with this package in the files license.txt / license.rst.  It is
+ * bundled with this package in the files license.txt / license.rst. It is
  * also available through the world wide web at this URL:
  * http://opensource.org/licenses/OSL-3.0
  * If you did not receive a copy of the license and are unable to obtain it
- * through the world wide web, please send an email to
- * licensing@ellislab.com so we can send you a copy immediately.
+ * through the world wide web, please send an email to licensing@xylophone.io
+ * so we can send you a copy immediately.
  *
- * @package		CodeIgniter
- * @author		EllisLab Dev Team
- * @copyright	Copyright (c) 2008 - 2013, EllisLab, Inc. (http://ellislab.com/)
- * @license		http://opensource.org/licenses/OSL-3.0 Open Software License (OSL 3.0)
- * @link		http://codeigniter.com
- * @since		Version 1.0
+ * @package     Xylophone
+ * @author      Xylophone Dev Team, EllisLab Dev Team
+ * @copyright   Copyright (c) 2014, Xylophone Team (http://xylophone.io/)
+ * @license     http://opensource.org/licenses/OSL-3.0 Open Software License (OSL 3.0)
+ * @link        http://xylophone.io
+ * @since       Version 1.0
  * @filesource
  */
+namespace Xylophone\core;
+
 defined('BASEPATH') OR exit('No direct script access allowed');
 
 /**
@@ -31,330 +34,385 @@ defined('BASEPATH') OR exit('No direct script access allowed');
  *
  * This class contains functions that enable config files to be managed
  *
- * @package		CodeIgniter
- * @subpackage	Libraries
- * @category	Libraries
- * @author		EllisLab Dev Team
- * @link		http://codeigniter.com/user_guide/libraries/config.html
+ * @package     Xylophone
+ * @subpackage  core
+ * @author      Xylophone Dev Team
+ * @link        http://xylophone.io/user_guide/libraries/config.html
  */
-class CI_Config {
+class Config implements ArrayAccess
+{
+    /** @var    array   List of all loaded config values */
+    public $config = array();
 
-	/**
-	 * List of all loaded config values
-	 *
-	 * @var	array
-	 */
-	public $config = array();
+    /** @var    array   List of all loaded config files */
+    public $is_loaded = array();
 
-	/**
-	 * List of all loaded config files
-	 *
-	 * @var	array
-	 */
-	public $is_loaded =	array();
+    /**
+     * Class constructor
+     *
+     * Sets the $config data from the primary config.php file as a class variable.
+     *
+     * @return  void
+     */
+    public function __construct()
+    {
+        global $XY;
 
-	/**
-	 * List of paths to search when trying to load a config file.
-	 *
-	 * @used-by	CI_Loader
-	 * @var		array
-	 */
-	public $_config_paths =	array(APPPATH);
+        // Read the config file
+        $this->config = $this->get('config.php', 'config');
+        if (!is_array($this->config)) {
+            header('HTTP/1.1 503 Service Unavailable.', true, 503);
+            echo $this->config === false ? 'The configuration file does not exist.' :
+                'The configuration file is invalid.';
+            exit(EXIT_CONFIG);
+        }
 
-	/**
-	 * Class constructor
-	 *
-	 * Sets the $config data from the primary config.php file as a class variable.
-	 *
-	 * @return	void
-	 */
-	public function __construct()
-	{
-		$this->config =& get_config();
-		log_message('debug', 'Config Class Initialized');
+        // Set the base_url automatically if none was provided
+        if (empty($this->config['base_url'])) {
+            if (isset($_SERVER['HTTP_HOST'])) {
+                $base_url = ($XY->isHttps() ? 'https' : 'http').'://'.$_SERVER['HTTP_HOST'].
+                    dirname($_SERVER['SCRIPT_NAME']).'/';
+            }
+            else {
+                $base_url = 'http://localhost/';
+            }
 
-		// Set the base_url automatically if none was provided
-		if (empty($this->config['base_url']))
-		{
-			if (isset($_SERVER['HTTP_HOST']))
-			{
-				$base_url = is_https() ? 'https' : 'http';
-				$base_url .= '://'.$_SERVER['HTTP_HOST']
-					.str_replace(basename($_SERVER['SCRIPT_NAME']), '', $_SERVER['SCRIPT_NAME']);
-			}
-			else
-			{
-				$base_url = 'http://localhost/';
-			}
+            $this->setItem('base_url', $base_url);
+        }
 
-			$this->set_item('base_url', $base_url);
-		}
-	}
+        // NOTE: Do not log messages from this constructor
+    }
 
-	// --------------------------------------------------------------------
+    /**
+     * Load Config File
+     *
+     * @param   mixed   Configuration file name or array of file names
+     * @param   bool    Whether configuration values should be loaded into their own section
+     * @param   bool    Whether to just return FALSE or display an error message
+     * @return  bool    TRUE if the file was loaded correctly or FALSE on failure
+     */
+    public function load($file = '', $use_sections = false, $fail_gracefully = false)
+    {
+        global $XY;
 
-	/**
-	 * Load Config File
-	 *
-	 * @param	string	$file			Configuration file name
-	 * @param	bool	$use_sections		Whether configuration values should be loaded into their own section
-	 * @param	bool	$fail_gracefully	Whether to just return FALSE or display an error message
-	 * @return	bool	TRUE if the file was loaded correctly or FALSE on failure
-	 */
-	public function load($file = '', $use_sections = FALSE, $fail_gracefully = FALSE)
-	{
-		$file = ($file === '') ? 'config' : str_replace('.php', '', $file);
-		$found = $loaded = FALSE;
+        foreach ((array)$file as $name) {
+            // Strip .php from file
+            $name = ($name === '') ? 'config' : str_replace('.php', '', $name);
 
-		foreach ($this->_config_paths as $path)
-		{
-			foreach (array(ENVIRONMENT.'/'.$file, $file) as $location)
-			{
-				$file_path = $path.'config/'.$location.'.php';
+            // Make sure file isn't already loaded
+            in_array($name, $this->is_loaded) && continue;
 
-				if (in_array($file_path, $this->is_loaded, TRUE))
-				{
-					$loaded = TRUE;
-					continue 2;
-				}
+            // Get config array and check result
+            $config = $this->get($name.'.php', 'config');
+            if ($config === false) {
+                $fail_gracefully && return false;
+                $XY->showError('The configuration file '.$name.'.php does not exist.');
+            }
+            else if (is_string($config)) {
+                $fail_gracefully && return false;
+                $XY->showError('Your '.$name.'.php file does not appear to contain a valid configuration array.');
+            }
 
-				if (file_exists($file_path))
-				{
-					$found = TRUE;
-					break;
-				}
-			}
+            // Check for sections
+            if ($use_sections === true) {
+                // Merge or set section
+                $this->config[$name] = isset($this->config[$name]) ?
+                    array_merge_recursive($this->config[$name], $config) : $this->config[$name] = $config;
+            }
+            else {
+                // Merge config
+                $this->config = array_merge_recursive($this->config, $config);
+            }
 
-			if ($found === FALSE)
-			{
-				continue;
-			}
+            // Mark file as loaded
+            $this->is_loaded[] = $name;
+            $XY->logger->debug('Config file loaded: '.$name.'.php');
+        }
 
-			include($file_path);
+        return true;
+    }
 
-			if ( ! isset($config) OR ! is_array($config))
-			{
-				if ($fail_gracefully === TRUE)
-				{
-					return FALSE;
-				}
-				show_error('Your '.$file_path.' file does not appear to contain a valid configuration array.');
-			}
+    /**
+     * Get config file contents
+     *
+     * Reads and merges config arrays from named config files
+     *
+     * @uses    Config::getExtra()
+     *
+     * @param   string  Config file name
+     * @param   string  Array name to look for
+     * @return  mixed   Merged config if found, TRUE if no array requested,
+     *                  file path if array is bad, otherwise FALSE
+     */
+    public function get($file, $name)
+    {
+        $extras = false;
+        return $this->getExtra($file, $name, $extras);
+    }
 
-			if ($use_sections === TRUE)
-			{
-				if (isset($this->config[$file]))
-				{
-					$this->config[$file] = array_merge($this->config[$file], $config);
-				}
-				else
-				{
-					$this->config[$file] = $config;
-				}
-			}
-			else
-			{
-				$this->config = array_merge($this->config, $config);
-			}
+    /**
+     * Get config file contents with extra vars
+     *
+     * Reads and merges config arrays from named config files.
+     * Any standalone variables not starting with an underscore are gathered
+     * and returned via $_extras. For this reason, all local variables start
+     * with an underscore.
+     *
+     * @used-by Config::get()
+     *
+     * @param   string  Config file name
+     * @param   string  Array name to look for
+     * @param   array   Reference to extras array
+     * @return  mixed   Merged config if found, TRUE if no array requested,
+     *                  file path if array is bad, otherwise FALSE
+     */
+    public function getExtra($_file, $_name, &$_extras)
+    {
+        global $XY;
 
-			$this->is_loaded[] = $file_path;
-			unset($config);
+        // Ensure file ends with .php
+        preg_match('/\.php$/', $_file) || $_file .= '.php';
 
-			$loaded = TRUE;
-			log_message('debug', 'Config file loaded: '.$file_path);
-			break;
-		}
+        // Merge arrays from all viable config paths
+        $_merged = array();
+        $_versions = array($_file);
+        $XY->environment && array_unshift($_versions, $XY->environment.DIRECTORY_SEPARATOR.$_file);
+        foreach ($XY->config_paths as $_path) {
+            // Check with/without environment
+            foreach ($_versions as $_version) {
+                // Determine if file exists here
+                $_file_path = $_path.'config'.DIRECTORY_SEPARATOR.$_version;
+                if (@include($_file_path)) {
+                    // See if we're gathering extra variables
+                    if ($_extras !== false) {
+                        // Get associative array of public vars
+                        foreach (get_defined_vars() as $_key => $_var) {
+                            if ($_key[0] != '_' && $_key != $_name) {
+                                $_extras[$_key] = $_var;
+                            }
+                        }
+                    }
 
-		if ($loaded === FALSE)
-		{
-			if ($fail_gracefully === TRUE)
-			{
-				return FALSE;
-			}
-			show_error('The configuration file '.$file.'.php does not exist.');
-		}
+                    // See if we have an array name to check for
+                    if (empty($_name)) {
+                        // Nope - just note we found something
+                        $_merged = true;
+                        continue;
+                    }
 
-		return TRUE;
-	}
+                    // Return bad filename if no array
+                    (isset($$_name) && is_array($$_name)) || return $_file_path;
 
-	// --------------------------------------------------------------------
+                    // Merge config and unset temporary copy
+                    $_merged = $_merged === true ? $$_name : array_replace_recursive($_merged, $$_name);
+                    unset($$_name);
 
-	/**
-	 * Fetch a config file item
-	 *
-	 * @param	string	$item	Config item name
-	 * @param	string	$index	Index name
-	 * @return	string|null	The configuration item or NULL if the item doesn't exist
-	 */
-	public function item($item, $index = '')
-	{
-		if ($index == '')
-		{
-			return isset($this->config[$item]) ? $this->config[$item] : NULL;
-		}
+                    // Go to next path
+                    continue 2;
+                }
+            }
+        }
 
-		return isset($this->config[$index], $this->config[$index][$item]) ? $this->config[$index][$item] : NULL;
-	}
+        // Return merged config or FALSE
+        return empty($_merged) ? false : $_merged;
+    }
 
-	// --------------------------------------------------------------------
+    /**
+     * Fetch a config file item
+     *
+     * @param   string  Config item name
+     * @param   string  Index name
+     * @return  mixed   The configuration item or NULL if the item doesn't exist
+     */
+    public function item($item, $index = '')
+    {
+        $index === '' && return isset($this->config[$item]) ? $this->config[$item] : null;
+        return isset($this->config[$index], $this->config[$index][$item]) ? $this->config[$index][$item] : null;
+    }
 
-	/**
-	 * Fetch a config file item with slash appended (if not empty)
-	 *
-	 * @param	string		$item	Config item name
-	 * @return	string|null	The configuration item or NULL if the item doesn't exist
-	 */
-	public function slash_item($item)
-	{
-		if ( ! isset($this->config[$item]))
-		{
-			return NULL;
-		}
-		elseif (trim($this->config[$item]) === '')
-		{
-			return '';
-		}
+    /**
+     * Fetch a config file item with slash appended (if not empty)
+     *
+     * @param   string  Config item name
+     * @return  mixed   The configuration item or NULL if the item doesn't exist
+     */
+    public function slashItem($item)
+    {
+        if (!isset($this->config[$item])) {
+            return null;
+        }
+        elseif (trim($this->config[$item]) === '') {
+            return '';
+        }
 
-		return rtrim($this->config[$item], '/').'/';
-	}
+        return rtrim($this->config[$item], '/').'/';
+    }
 
-	// --------------------------------------------------------------------
+    /**
+     * Site URL
+     *
+     * Returns base_url . index_page [. uri_string]
+     *
+     * @uses    Config::uriString()
+     *
+     * @param   mixed   URI string or an array of segments
+     * @param   string  Protocol
+     * @return  string  Site URL
+     */
+    public function siteUrl($uri = '', $protocol = null)
+    {
+        $base_url = $this->slashItem('base_url');
+        isset($protocol) && $base_url = $protocol.substr($base_url, strpos($base_url, '://'));
 
-	/**
-	 * Site URL
-	 *
-	 * Returns base_url . index_page [. uri_string]
-	 *
-	 * @uses	CI_Config::_uri_string()
-	 *
-	 * @param	string|string[]	$uri	URI string or an array of segments
-	 * @param	string	$protocol
-	 * @return	string
-	 */
-	public function site_url($uri = '', $protocol = NULL)
-	{
-		$base_url = $this->slash_item('base_url');
+        empty($uri) && return $base_url.$this->item('index_page');
 
-		if (isset($protocol))
-		{
-			$base_url = $protocol.substr($base_url, strpos($base_url, '://'));
-		}
+        $uri = $this->uriString($uri);
 
-		if (empty($uri))
-		{
-			return $base_url.$this->item('index_page');
-		}
+        if ($this->item('enable_query_strings') === false) {
+            $suffix = isset($this->config['url_suffix']) ? $this->config['url_suffix'] : '';
 
-		$uri = $this->_uri_string($uri);
+            if ($suffix !== '') {
+                if (($offset = strpos($uri, '?')) !== false) {
+                    $uri = substr($uri, 0, $offset).$suffix.substr($uri, $offset);
+                }
+                else {
+                    $uri .= $suffix;
+                }
+            }
 
-		if ($this->item('enable_query_strings') === FALSE)
-		{
-			$suffix = isset($this->config['url_suffix']) ? $this->config['url_suffix'] : '';
+            return $base_url.$this->slashItem('index_page').$uri;
+        }
+        elseif (strpos($uri, '?') === false) {
+            $uri = '?'.$uri;
+        }
 
-			if ($suffix !== '')
-			{
-				if (($offset = strpos($uri, '?')) !== FALSE)
-				{
-					$uri = substr($uri, 0, $offset).$suffix.substr($uri, $offset);
-				}
-				else
-				{
-					$uri .= $suffix;
-				}
-			}
+        return $base_url.$this->item('index_page').$uri;
+    }
 
-			return $base_url.$this->slash_item('index_page').$uri;
-		}
-		elseif (strpos($uri, '?') === FALSE)
-		{
-			$uri = '?'.$uri;
-		}
+    /**
+     * Base URL
+     *
+     * Returns base_url [. uri_string]
+     *
+     * @uses    Config::uriString()
+     *
+     * @param   mixed   URI string or an array of segments
+     * @param   string  Protocol
+     * @return  string  Base URl
+     */
+    public function baseUrl($uri = '', $protocol = null)
+    {
+        $base_url = $this->slashItem('base_url');
+        isset($protocol) && $base_url = $protocol.substr($base_url, strpos($base_url, '://'));
+        return $base_url.ltrim($this->uriString($uri), '/');
+    }
 
-		return $base_url.$this->item('index_page').$uri;
-	}
+    /**
+     * Build URI string
+     *
+     * @used-by Config::siteUrl()
+     * @used-by Config::baseUrl()
+     *
+     * @param   mixed   URI string or an array of segments
+     * @return  string  URI string
+     */
+    protected function uriString($uri)
+    {
+        if ($this->item('enable_query_strings') === false) {
+            is_array($uri) && $uri = implode('/', $uri);
+            return trim($uri, '/');
+        }
+        elseif (is_array($uri)) {
+            return http_build_query($uri);
+        }
 
-	// -------------------------------------------------------------
+        return $uri;
+    }
 
-	/**
-	 * Base URL
-	 *
-	 * Returns base_url [. uri_string]
-	 *
-	 * @uses	CI_Config::_uri_string()
-	 *
-	 * @param	string|string[]	$uri	URI string or an array of segments
-	 * @param	string	$protocol
-	 * @return	string
-	 */
-	public function base_url($uri = '', $protocol = NULL)
-	{
-		$base_url = $this->slash_item('base_url');
+    /**
+     * System URL
+     *
+     * @return  string  System URL
+     */
+    public function systemUrl()
+    {
+        global $XY;
+        $x = explode('/', preg_replace('|/*(.+?)/*$|', '\\1', $XY->system_path));
+        return $this->slashItem('base_url').end($x).'/';
+    }
 
-		if (isset($protocol))
-		{
-			$base_url = $protocol.substr($base_url, strpos($base_url, '://'));
-		}
+    /**
+     * Set a config file item
+     *
+     * @param   mixed   Config item key or array of config items
+     * @param   string  Config item value
+     * @return  void
+     */
+    public function setItem($item, $value = '')
+    {
+        // Check for multiple items
+        if (is_array($item)) {
+            // Merge into config
+            $this->config = array_merge_recursive($this->config, $item);
+        }
+        else {
+            // Set single item
+            $this->config[$item] = $value;
+        }
+    }
 
-		return $base_url.ltrim($this->_uri_string($uri), '/');
-	}
+    /**
+     * Check item existence by offset
+     *
+     * @interface   ArrayAccess
+     *
+     * @param   string  Config item key
+     * @return  boolean TRUE if item exists, otherwise FALSE
+     */
+    public function offsetExists($offset)
+    {
+        return isset($this->config[$offset]);
+    }
 
-	// -------------------------------------------------------------
+    /**
+     * Get config item by offset
+     *
+     * @interface   ArrayAccess
+     *
+     * @param   string  Config item key
+     * @return  mixed   Config item value
+     */
+    public function offsetGet($offset)
+    {
+        return isset($this->config[$offset]) ? $this->config[$offset] : null;
+    }
 
-	/**
-	 * Build URI string
-	 *
-	 * @used-by	CI_Config::site_url()
-	 * @used-by	CI_Config::base_url()
-	 *
-	 * @param	string|string[]	$uri	URI string or an array of segments
-	 * @return	string
-	 */
-	protected function _uri_string($uri)
-	{
-		if ($this->item('enable_query_strings') === FALSE)
-		{
-			if (is_array($uri))
-			{
-				$uri = implode('/', $uri);
-			}
-			return trim($uri, '/');
-		}
-		elseif (is_array($uri))
-		{
-			return http_build_query($uri);
-		}
+    /**
+     * Set config item by offset
+     *
+     * @interface   ArrayAccess
+     *
+     * @param   string  Config item key
+     * @param   mixed   Config item value
+     * @return  void
+     */
+    public function offsetSet($offset, $value)
+    {
+        // Only string keys, please
+        is_string($offset) && $this->config[$offset] = $value;
+    }
 
-		return $uri;
-	}
-
-	// --------------------------------------------------------------------
-
-	/**
-	 * System URL
-	 *
-	 * @return	string
-	 */
-	public function system_url()
-	{
-		$x = explode('/', preg_replace('|/*(.+?)/*$|', '\\1', BASEPATH));
-		return $this->slash_item('base_url').end($x).'/';
-	}
-
-	// --------------------------------------------------------------------
-
-	/**
-	 * Set a config file item
-	 *
-	 * @param	string	$item	Config item key
-	 * @param	string	$value	Config item value
-	 * @return	void
-	 */
-	public function set_item($item, $value)
-	{
-		$this->config[$item] = $value;
-	}
-
+    /**
+     * Unset config item by offset
+     *
+     * @interface   ArrayAccess
+     *
+     * @param   string  Config item key
+     * @return  void
+     */
+    public function offsetUnset($offset)
+    {
+        unset($this->config[$offset]);
+    }
 }
 
-/* End of file Config.php */
-/* Location: ./system/core/Config.php */
