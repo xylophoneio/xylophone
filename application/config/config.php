@@ -192,26 +192,29 @@ $config['directory_trigger']	= 'd'; // experimental not currently in use
 | Error Logging Threshold
 |--------------------------------------------------------------------------
 |
-| If you have enabled error logging, you can set an error threshold to
-| determine what gets logged. Threshold options are:
-| You can enable error logging by setting a threshold over zero. The
+| You can enable error logging by setting a threshold other than 'none'. The
 | threshold determines what gets logged. Threshold options are:
+|	'none'
+|   'emergency'
+|   'alert'
+|   'critical'
+|   'error'
+|   'warning'
+|   'notice'
+|   'info'
+|   'debug'
+|   'all'
 |
-|	0 = Disables logging, Error logging TURNED OFF
-|	1 = Error Messages (including PHP errors)
-|	2 = Debug Messages
-|	3 = Informational Messages
-|	4 = All Messages
+| Each level allows all the levels above it.
 |
-| You can also pass in a array with threshold levels to show individual error types
+| You can also set an array with individual error types to log:
+| 	$config['log_threshold'] = array('error', 'warning', 'debug');
 |
-| 	array(2) = Debug Messages, without Error Messages
-|
-| For a live site you'll usually only enable Errors (1) to be logged otherwise
-| your log files will fill up very fast.
+| For a live site you'll usually only enable 'error' or higher to be logged
+| otherwise your log files will fill up very fast.
 |
 */
-$config['log_threshold'] = 0;
+$config['log_threshold'] = 'none';
 
 /*
 |--------------------------------------------------------------------------
