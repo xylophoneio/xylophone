@@ -36,7 +36,7 @@ Installation
 ************
 
 Please see the `installation section <http://xylophone.io/user_guide/installation/index.html>`_
-of the CodeIgniter User Guide.
+of the Xylophone User Guide.
 
 *******
 License
