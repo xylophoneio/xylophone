@@ -10,7 +10,7 @@
  * Licensed under the Open Software License version 3.0
  *
  * This source file is subject to the Open Software License (OSL 3.0) that is
- * bundled with this package in the files license.txt / license.rst.  It is
+ * bundled with this package in the files license.txt / license.rst. It is
  * also available through the world wide web at this URL:
  * http://opensource.org/licenses/OSL-3.0
  * If you did not receive a copy of the license and are unable to obtain it
@@ -122,14 +122,31 @@ $view_folder = '';
  * SYSTEM FOLDER NAME
  *---------------------------------------------------------------
  * This variable must contain the name of your "system" folder.
- * Include the path if the folder is not in the same directory
- * as this file.
+ * Include the path if the folder is not in the same directory as this file.
  */
 $system_path = 'system';
 
-/* --------------------------------------------------------------------
+/*---------------------------------------------------------------
+ * OVERRIDE CORE MODULES
+ *---------------------------------------------------------------
+ * If you want to override core modules, set this variable to TRUE.
+ * This will cause the system to search your application path and
+ * namespaces for core class overrides.
+ */
+$override_core = false;
+
+/*---------------------------------------------------------------
+ * LIBRARY SEARCH
+ *---------------------------------------------------------------
+ * Set this variable to TRUE If you want to load libraries from your
+ * application or namespace paths, or override system libraries.
+ * Otherwise, libraries will only be loaded from your system path.
+ */
+$library_search = false;
+
+/*---------------------------------------------------------------
  * DEFAULT CONTROLLER
- * --------------------------------------------------------------------
+ *---------------------------------------------------------------
  * Normally you will set your default controller in the routes.php file.
  * You can, however, force a custom routing by hard-coding a specific controller
  * class/function here. For most applications, you WILL NOT set your routing
@@ -156,9 +173,9 @@ $routing = array();
 // The controller function you wish to be called.
 // $routing['function']    = '';
 
-/* -------------------------------------------------------------------
+/*---------------------------------------------------------------
  * CUSTOM CONFIG VALUES
- * -------------------------------------------------------------------
+ *---------------------------------------------------------------
  * The $config array below will be passed dynamically to the
  * config class when initialized. This allows you to set custom config
  * items or override any default config values found in the config.php file.
@@ -172,13 +189,13 @@ $config = array();
 
 // $config['name_of_config_item'] = 'value of config item';
 
-// --------------------------------------------------------------------
-// END OF USER CONFIGURABLE SETTINGS.  DO NOT EDIT BELOW THIS LINE
-// --------------------------------------------------------------------
+//---------------------------------------------------------------
+// END OF USER CONFIGURABLE SETTINGS. DO NOT EDIT BELOW THIS LINE
+//---------------------------------------------------------------
 
 
 // Set the current directory correctly for CLI requests
-!defined('STDIN') || chdir(dirname(__FILE__));
+defined('STDIN') && chdir(dirname(__FILE__));
 
 // Define BASEPATH for direct access restriction on application scripts
 define('BASEPATH', __DIR__);
@@ -216,7 +233,9 @@ $XY = Xylophone\core\Xylophone::instance(array(
     'ns_paths' => array_merge(array($application_namespace => $application_folder), $namespace_paths),
     'view_paths' => array($view_folder),
     'system_path' => $system_path,
-    'resolve_bases' => $resolve_bases
+    'resolve_bases' => $resolve_bases,
+    'override_core' => $override_core,
+    'library_search' => $library_search
 ));
 $XY->play($config, $routing);
 

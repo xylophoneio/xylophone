@@ -77,6 +77,12 @@ class Xylophone
     /** @var    string  Application front controller base path with trailing slash */
     public $base_path = '';
 
+    /** @var    bool    Whether to search for core class overrides */
+    public $override_core = false;
+
+    /** @var    bool    Whether to search for library overrides */
+    public $library_search = false;
+
     /** @var    array   Relative path resolution bases */
     protected $resolve_bases = array();
 
@@ -239,6 +245,10 @@ class Xylophone
         // Set view paths
         isset($init['view_paths']) || $init['view_paths'] = array('');
         $this->addViewPath($init['view_paths']);
+
+        // Set override flags
+        isset($init['override_core']) && $this->override_core = $init['override_core'];
+        isset($init['library_search']) && $this->library_search = $init['library_search'];
 
         // Register autoloader
         spl_autoload_register(array($this, 'autoloader'));
@@ -413,13 +423,19 @@ class Xylophone
         // Check for namespace
         $pos = strrpos($name, '\\');
         if ($pos === false) {
-            // Search all namespaces
-            $spaces = array_keys($this->ns_paths);
+            // Check for core or library class
+            $core = ($hint == 'core');
+            $libs = (strpos($hint, 'libraries') !== false);
 
-            // Check for models or controllers hint
-            if (strpos($hint, 'models') === false && strpos($hint, 'controllers') === false) {
-                // Also search the system namespace
-                $spaces[] = 'Xylophone';
+            // Check for bare system class
+            if (($core && !$this->override_core) || ($libs && !$this->library_search)) {
+                // Search only system namespace
+                $spaces = array('Xylophone');
+            }
+            else {
+                // Search all namespaces, plus system for core or libs
+                $spaces = array_keys($this->ns_paths);
+                ($core || $libs) && $spaces[] = 'Xylophone';
             }
         }
         else {
