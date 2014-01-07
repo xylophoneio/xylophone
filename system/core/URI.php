@@ -38,6 +38,7 @@ defined('BASEPATH') OR exit('No direct script access allowed');
  * @subpackage  core
  * @link        http://xylophone.io/user_guide/libraries/uri.html
  */
+
 class URI
 {
     /** @var    string  Current URI string */
