@@ -259,7 +259,7 @@ class Input
      * @param   bool    Whether to only makes the cookie accessible via HTTP (no javascript)
      * @return  void
      */
-    public function setCookie($name = '', $value = '', $expire = '', $domain = '', $path = '/', $prefix = '', $secure = false, $httponly = false)
+    public function setCookie($name, $value = '', $expire = '', $domain = '', $path = '/', $prefix = '', $secure = false, $httponly = false)
     {
         global $XY;
 

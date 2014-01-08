@@ -23,7 +23,7 @@ Release Date: Not Released
    -  ``$_SERVER['CI_ENV']`` can now be set to control the ``ENVIRONMENT`` constant.
    -  Added an optional backtrace to php-error template.
    -  Added Android to the list of user agents.
-   -  Added Windows 7, Windows 8, Android, Blackberry, iOS and PlayStation 3 to the list of user platforms.
+   -  Added Windows 7, Windows 8, Windows 8.1, Android, Blackberry, iOS and PlayStation 3 to the list of user platforms.
    -  Added Fennec (Firefox for mobile) to the list of mobile user agents.
    -  Ability to log certain error types, not all under a threshold.
    -  Added support for pem, p10, p12, p7a, p7c, p7m, p7r, p7s, crt, crl, der, kdb, rsa, cer, sst, csr Certs to mimes.php.
@@ -634,6 +634,8 @@ Bug fixes for 3.0
 -  Fixed a bug (#2515) - ``_exception_handler()`` used to send the 200 "OK" HTTP status code and didn't stop script exection even on fatal errors.
 -  Fixed a bug - Redis :doc:`Caching <libraries/caching>` driver didn't handle connection failures properly.
 -  Fixed a bug (#2756) - :doc:`Database Class <database/index>` executed the MySQL-specific `SET SESSION sql_mode` query for all drivers when the 'stricton' option is set.
+-  Fixed a bug (#2579) - :doc:`Query Builder <database/query_builder>`s "no escape" functionality didn't work properly with query cache.
+-  Fixed a bug (#2237) - :doc:`Parser Library <libraries/parser>` failed if the same tag pair is used more than once within a template.
 
 Version 2.1.4
 =============

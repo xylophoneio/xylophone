@@ -129,7 +129,7 @@ class Lang
      * @param   bool    Whether to log an error message if the line is not found
      * @return  string  Translation
      */
-    public function line($line = '', $log_errors = true)
+    public function line($line, $log_errors = true)
     {
         global $XY;
 
