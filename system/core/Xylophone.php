@@ -117,13 +117,27 @@ class Xylophone
      *
      * Returns singleton instance of framework object
      *
-     * @param   array   Initialization array (when first instantiating)
-     * @return  object
+     * @param   array   $init   Initialization array (when first instantiating)
+     * @return  object  Xylophone object
      */
     public static function instance($init = null)
     {
         // Check for existing instance
         if (self::$instance === null) {
+            // Set error reporting for default environments
+            isset($init['environment']) || $init['environment'] = 'development';
+            switch ($init['environment']) {
+                case 'development':
+                    error_reporting(-1);
+                    ini_set('display_errors', 1);
+                    break;
+                case 'testing':
+                case 'production':
+                    error_reporting(E_ALL & ~E_NOTICE & ~E_DEPRECATED & ~E_STRICT);
+                    ini_set('display_errors', 0);
+                    break;
+            }
+
             // Set resolve base paths
             isset($init['resolve_bases']) || $init['resolve_bases'] = array('');
 
@@ -194,7 +208,7 @@ class Xylophone
      *
      * @used-by Xylophone::instance()
      *
-     * @param   array   Initialization parameters
+     * @param   array   $init   Initialization parameters
      * @return  void
      */
     public function initialize($init)
@@ -257,16 +271,20 @@ class Xylophone
     /**
      * Play the Xylophone application
      *
-     * @param   array   Optional config overrides
-     * @param   array   Optional routing overrides
+     * @param   bool    $benchmark  Whether to enable benchmarking
+     * @param   array   $config     Optional config overrides
+     * @param   array   $routing    Optional routing overrides
      * @return  void
      */
-    public function play($config = null, $routing = null)
+    public function play($benchmark = false, $config = null, $routing = null)
     {
-        // Load Benchmark and initiate timing
-        $this->benchmark = $this->loadClass('Benchmark', 'core');
-        $this->benchmark->mark('total_execution_time_start');
-        $this->benchmark->mark('loading_time:_base_classes_start');
+        // Check for benchmarking
+        if ($benchmark) {
+            // Load Benchmark and initiate timing
+            $this->benchmark = $this->loadClass('Benchmark', 'core');
+            $this->benchmark->mark('total_execution_time_start');
+            $this->benchmark->mark('loading_time:_base_classes_start');
+        }
 
         // Load Config, set overrides, load constants and get autoload config
         $this->config = $this->loadClass('Config', 'core');
@@ -311,7 +329,7 @@ class Xylophone
         $this->security = $this->loadClass('Security', 'core');
         $this->input = $this->loadClass('Input', 'core');
         $this->lang = $this->loadClass('Lang', 'core');
-        $this->benchmark->mark('loading_time:_base_classes_end');
+        $benchmark && $this->benchmark->mark('loading_time:_base_classes_end');
 
         // Load remaining autoload resources
         !isset($autoload['language']) || $this->lang->load($autoload['language']);
@@ -321,7 +339,7 @@ class Xylophone
 
         // Call pre_controller and mark controller start point
         $this->hooks->callHook('pre_controller');
-        $this->benchmark->mark('controller_execution_time_start');
+        $benchmark && $this->benchmark->mark('controller_execution_time_start');
 
         // Load the controller, but don't call the method yet
         $parts = explode('\\', $this->router->route['class']);
@@ -335,7 +353,7 @@ class Xylophone
         $this->callController($this->router->route) || $this->show404($class.'/'.$method);
 
         // Mark end time, display output unless overridden, and call post_system
-        $this->benchmark->mark('controller_execution_time_end');
+        $benchmark && $this->benchmark->mark('controller_execution_time_end');
         $this->hooks->callHook('post_controller');
         $this->hooks->callHook('display_override') || $this->output->display();
         $this->hooks->callHook('post_system');
@@ -347,11 +365,11 @@ class Xylophone
      * Requires that controller already be loaded, validates method name, and calls
      * remap if available.
      *
-     * @param   mixed   Class name string or route stack array
-     * @param   string  Method name (unless $class is stack)
-     * @param   array   Arguments array (unless $class is stack)
-     * @param   string  Optional object name
-     * @param   bool    TRUE to return output
+     * @param   mixed   $class  Class name string or route stack array
+     * @param   string  $method Method name (unless $class is stack)
+     * @param   array   $args   Arguments array (unless $class is stack)
+     * @param   string  $name   Optional object name
+     * @param   bool    $return TRUE to return output
      * @return  mixed   Output if $return, TRUE on success, otherwise FALSE
      */
     public function callController($class, $method, array $args = array(), $name = '', $return = false)
@@ -413,12 +431,13 @@ class Xylophone
      * @used-by Xylophone::play()
      * @used-by Loader::loadResource()
      *
-     * @param   string  Class name with optional namespace
-     * @param   string  Namespace hint (if namespace not provided) - forward slashes
-     * @param   mixed   Optional constructor parameter
+     * @param   string  $name   Class name with optional namespace
+     * @param   string  $hint   Namespace hint (if namespace not provided) - forward slashes
+     * @param   mixed   $param  Optional constructor parameter
+     * @param   mixed   $param2 Optional second constructor parameter
      * @return  object  Class object on success, otherwise NULL
      */
-    public function loadClass($name, $hint, $param = null)
+    public function loadClass($name, $hint, $param = null, $param2 = null)
     {
         // Check for namespace
         $pos = strrpos($name, '\\');
@@ -462,7 +481,8 @@ class Xylophone
                 $class .= $name;
 
                 // Instantiate class
-                $module = ($param === null) ? new $class() : new $class($param);
+                $module = ($param === null) ? new $class() :
+                    ($param2 === null) ? new $class($param) : new $class($param, $param2);
 
                 // If we got here, we're done
                 break;
@@ -483,7 +503,7 @@ class Xylophone
      *
      * @throws  AutloadException
      *
-     * @param   string  Class name with full namespace
+     * @param   string  $class  Class name with full namespace
      * @return  void
      */
     public function autoloader($class)
@@ -520,8 +540,8 @@ class Xylophone
      *
      * Registers a class namespace with its base path for autoloader searching.
      *
-     * @param   mixed   Top-level namespace or array of namespace/path pairs
-     * @param   string  Path to source files
+     * @param   mixed   $namespace  Top-level namespace or array of namespace/path pairs
+     * @param   string  $path       Path to source files
      * @return  boolean TRUE on success, otherwise FALSE
      */
     public function addNamespace($namespace, $path)
@@ -559,7 +579,7 @@ class Xylophone
      *
      * Unregisters a namespace from the autoloader search path.
      *
-     * @param   string  Top-level namespace
+     * @param   string  $namespace  Top-level namespace
      * @return  void
      */
     public function removeNamespace($namespace)
@@ -573,7 +593,7 @@ class Xylophone
      *
      * Adds a path where Loader can find view files.
      *
-     * @param   mixed   View path or array of paths
+     * @param   mixed   $view_path  View path or array of paths
      * @return  boolean TRUE on success, otherwise FALSE
      */
     public function addViewPath($view_path)
@@ -609,7 +629,7 @@ class Xylophone
     /**
      * Remove a view path
      *
-     * @param   string  View path
+     * @param   string  $view_path  View path
      * @return  void
      */
     public function removeViewPath($view_path)
@@ -623,7 +643,7 @@ class Xylophone
      *
      * Saves results to speed up repeated checks.
      *
-     * @param   mixed   Version number or string
+     * @param   mixed   $ver    Version number or string
      * @return  bool    TRUE if PHP is the version or later, otherwise FALSE
      */
     public function isPhp($ver)
@@ -639,7 +659,7 @@ class Xylophone
      *
      * Determines if the application is accessed via an encrypted (HTTPS) connection.
      *
-     * @return  bool
+     * @return  bool    TRUE if HTTPS, otherwise FALSE
      */
     public function isHttps()
     {
@@ -661,7 +681,7 @@ class Xylophone
      *
      * Test to see if a request was made from the command line.
      *
-     * @return  bool
+     * @return  bool    TRUE if CLI, otherwise FALSE
      */
     public function isCli()
     {
@@ -672,8 +692,8 @@ class Xylophone
     /**
      * Determine if a class method can actually be called (from outside the class)
      *
-     * @param   mixed   Class name or object
-     * @param   string  Method
+     * @param   mixed   $class  Class name or object
+     * @param   string  $method Method
      * @return  boolean TRUE if publicly callable, otherwise FALSE
      */
     public function isCallable($class, $method)
@@ -697,13 +717,13 @@ class Xylophone
      *
      * @link    http://www.hardened-php.net/suhosin/
      *
-     * @param   string  Function to check for
+     * @param   string  $func   Function to check for
      * @return  bool    TRUE if the function is usable, otherwise FALSE
      */
-    public function isUsable($function_name)
+    public function isUsable($func)
     {
         // Does the function exist?
-        if (function_exists($function_name)) {
+        if (function_exists($func)) {
             // Have we loaded the suhosin blacklist?
             if (!isset($this->suhosin_blist)) {
                 // Is suhosin loaded?
@@ -723,7 +743,7 @@ class Xylophone
             }
 
             // Return whether function is not blacklisted
-            return !in_array($function_name, $this->suhosin_blist, true);
+            return !in_array($func, $this->suhosin_blist, true);
         }
 
         // Can't use what doesn't exist
@@ -737,7 +757,7 @@ class Xylophone
      * the file, based on the read-only attribute. is_writable() is also unreliable
      * on Unix servers if safe_mode is on.
      *
-     * @param   string  File path
+     * @param   string  $file   File path
      * @return  void
      */
     public function isWritable($file)
@@ -772,8 +792,8 @@ class Xylophone
      *
      * This function is similar to showError() above, but it displays a 404 error.
      *
-     * @param   string  Page URL
-     * @param   bool    Log error flag
+     * @param   string  $page       Page URL
+     * @param   bool    $log_error  Whether to log the error
      * @return  void
      */
     public function show404($page = '', $log_error = true)
@@ -789,15 +809,15 @@ class Xylophone
      * using the standard error template located in application/views/errors/error_general.php
      * This function will send the error page directly to the browser and exit.
      *
-     * @param   string  Error message
-     * @param   int     Exit status code
-     * @param   string  Page heading
+     * @param   string  $message    Error message
+     * @param   int     $status     Exit status code
+     * @param   string  $heading    Page heading
      * @return  void
      */
-    public function showError($message, $status_code = 500, $heading = 'An Error Was Encountered')
+    public function showError($message, $status = 500, $heading = 'An Error Was Encountered')
     {
         // Call error on exceptions
-        $this->loadClass('Exceptions', 'core')->showError($heading, $message, 'error_general', $status_code);
+        $this->loadClass('Exceptions', 'core')->showError($heading, $message, 'error_general', $status);
     }
 
     /**
@@ -810,10 +830,10 @@ class Xylophone
      * to display errors based on the current error_reporting level.
      * We do that with the use of a PHP error template.
      *
-     * @param   int     Severity code
-     * @param   string  Error message
-     * @param   string  File path
-     * @param   int     Line number
+     * @param   int     $severity   Severity code
+     * @param   string  $message    Error message
+     * @param   string  $filepath   File path
+     * @param   int     $line       Line number
      * @return  void
      */
     public function exceptionHandler($severity, $message, $filepath, $line)

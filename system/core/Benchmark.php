@@ -45,13 +45,16 @@ class Benchmark
     /** @var    array   List of all benchmark markers */
     public $marker = array();
 
+    /** @var    bool    Whether output has been tagged with a benchmark placeholder */
+    public $tagged = false;
+
     /**
      * Set a benchmark marker
      *
      * Multiple calls to this function can be made so that several
      * execution points can be timed.
      *
-     * @param   string  Marker name
+     * @param   string  $name   Marker name
      * @return  void
      */
     public function mark($name)
@@ -69,16 +72,21 @@ class Benchmark
      * execution time to be shown in a template. The output class will
      * swap the real value for this variable.
      *
-     * @param   string  A particular marked point
-     * @param   string  A particular marked point
-     * @param   int     Number of decimal places
+     * @param   string  $point1     A particular marked point
+     * @param   string  $point2     A particular marked point
+     * @param   int     $decimals   Number of decimal places
      * @return  string  Calculated elapsed time on success, an '{elapsed_string}'
      *                  if $point1 is empty or an empty string if $point1 is not found.
      */
     public function elapsedTime($point1 = '', $point2 = '', $decimals = 4)
     {
-        ($point1 !== '') || return '{elapsed_time}';
-        isset($this->marker[$point1]) || return '';
+        if ($point1 === '') {
+            $this->tagged = true;
+            return '{elapsed_time}';
+        }
+        if (!isset($this->marker[$point1])) {
+            return '';
+        }
         isset($this->marker[$point2]) || $this->marker[$point2] = microtime(true);
         return number_format($this->marker[$point2] - $this->marker[$point1], $decimals);
     }
@@ -96,6 +104,7 @@ class Benchmark
      */
     public function memoryUsage()
     {
+        $this->tagged = true;
         return '{memory_usage}';
     }
 }

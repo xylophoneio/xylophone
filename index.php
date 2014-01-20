@@ -36,7 +36,7 @@
  * This can be set to anything, but the default values are "development",
  * "testing", and "production".
  *
- * NOTE: If you use a custom value, add it to the error reporting code below.
+ * NOTE: If you use a custom value, see the error reporting code below.
  */
 $environment = isset($_SERVER['XY_ENV']) ? $_SERVER['XY_ENV'] : 'development');
 
@@ -45,21 +45,11 @@ $environment = isset($_SERVER['XY_ENV']) ? $_SERVER['XY_ENV'] : 'development');
  *---------------------------------------------------------------
  * Different environments will require different levels of error reporting.
  * By default development will show errors but testing and live will hide them.
+ * If you are using a custom environment, set the desired error reporting below.
  */
-switch ($environment) {
-    case 'development':
-        error_reporting(-1);
-        ini_set('display_errors', 1);
-        break;
-    case 'testing':
-    case 'production':
-        error_reporting(E_ALL & ~E_NOTICE & ~E_DEPRECATED & ~E_STRICT);
-        ini_set('display_errors', 0);
-        break;
-    default:
-        header('HTTP/1.1 503 Service Unavailable.', true, 503);
-        echo 'The application environment is not set correctly.';
-        exit(EXIT_ERROR);
+if (!in_array($environment, array('development', 'testing', 'production'))) {
+    error_reporting(E_ALL & ~E_NOTICE & ~E_DEPRECATED & ~E_STRICT);
+    ini_set('display_errors', 0);
 }
 
 /*---------------------------------------------------------------
@@ -105,7 +95,6 @@ $application_folder = 'application';
  * application namespace/folder or one specified here.
  */
 $namespace_paths = array();
-
 //$namespace_paths['namespace'] = '/path/to/namespace/root';
 
 /*---------------------------------------------------------------
@@ -145,6 +134,15 @@ $override_core = false;
 $library_search = false;
 
 /*---------------------------------------------------------------
+ * BENCHMARKING
+ *---------------------------------------------------------------
+ * Set this variable to TRUE If you want to track load and run times
+ * within your application. The profiler features of Output also rely
+ * on benchmarking, so enable this if you want to use those, as well.
+ */
+$benchmark = false;
+
+/*---------------------------------------------------------------
  * DEFAULT CONTROLLER
  *---------------------------------------------------------------
  * Normally you will set your default controller in the routes.php file.
@@ -162,16 +160,13 @@ $library_search = false;
  * Un-comment elements of the $routing array below to use this feature
  */
 $routing = array();
-
 // The directory name, relative to the "controllers" folder. Leave blank
 // if your controller is not in a sub-folder within the "controllers" folder
-// $routing['directory'] = '';
-
+//$routing['directory'] = '';
 // The controller class file name. Example: mycontroller
-// $routing['controller'] = '';
-
+//$routing['controller'] = '';
 // The controller function you wish to be called.
-// $routing['function']    = '';
+//$routing['function']    = '';
 
 /*---------------------------------------------------------------
  * CUSTOM CONFIG VALUES
@@ -186,7 +181,6 @@ $routing = array();
  * Un-comment the $config array below to use this feature
  */
 $config = array();
-
 // $config['name_of_config_item'] = 'value of config item';
 
 //---------------------------------------------------------------
@@ -237,5 +231,5 @@ $XY = Xylophone\core\Xylophone::instance(array(
     'override_core' => $override_core,
     'library_search' => $library_search
 ));
-$XY->play($config, $routing);
+$XY->play($benchmark, $config, $routing);
 
