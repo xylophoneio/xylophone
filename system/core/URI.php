@@ -89,16 +89,24 @@ class URI
         $protocol = strtoupper($XY->config['uri_protocol']);
         if ($protocol === 'AUTO') {
             // Is the request coming from the command line?
-            $XY->isCli() && return $this->setUriString($this->parseArgv());
+            if ($XY->isCli()) {
+                return $this->setUriString($this->parseArgv());
+            }
 
             // Is there a PATH_INFO variable? This should be the easiest solution.
-            isset($_SERVER['PATH_INFO']) && return $this->setUriString($_SERVER['PATH_INFO']);
+            if (isset($_SERVER['PATH_INFO'])) {
+                return $this->setUriString($_SERVER['PATH_INFO']);
+            }
 
             // Let's try REQUEST_URI then, this will work in most situations
-            ($uri = $this->parseRequestUri()) !== '' && return $this->setUriString($uri);
+            if (($uri = $this->parseRequestUri()) !== '') {
+                return $this->setUriString($uri);
+            }
 
             // No REQUEST_URI either?... What about QUERY_STRING?
-            ($uri = $this->parseQueryString()) !== '' && return $this->setUriString($uri);
+            if (($uri = $this->parseQueryString()) !== '') {
+                return $this->setUriString($uri);
+            }
 
             // As a last ditch effort let's try using the $_GET array
             is_array($_GET) && count($_GET) == 1 && trim(key($_GET), '/') !== '' &&
@@ -110,11 +118,15 @@ class URI
         }
 
         // Check for CLI
-        $protocol === 'CLI' && return $this->setUriString($this->parseArgv());
+        if ($protocol === 'CLI') {
+            return $this->setUriString($this->parseArgv());
+        }
 
         // Check for a matching method
         $method = 'parse'.implode(array_map('ucfirst', array_map('strtolower', explode('_', $protocol))));
-        method_exists($this, $method) && return $this->setUriString($this->$method());
+        if (method_exists($this, $method)) {
+            return $this->setUriString($this->$method());
+        }
 
         // Try a server or environment variable
         $this->setUriString(isset($_SERVER[$protocol]) ? $_SERVER[$protocol] : @getenv($protocol));
@@ -139,8 +151,8 @@ class URI
         $this->rsegments = $this->explodeSegments($this->ruri_string);
 
         // Re-index both segment arrays
-        array_unshift($this->segments, NULL);
-        array_unshift($this->rsegments, NULL);
+        array_unshift($this->segments, null);
+        array_unshift($this->rsegments, null);
         unset($this->segments[0]);
         unset($this->rsegments[0]);
     }
@@ -153,7 +165,7 @@ class URI
      * @used-by URI::setUriString()
      * @used-by Router::parseQuery()
      *
-     * @param   string  URI string
+     * @param   string  $uri    URI string
      * @return  string  Cleaned string
      */
     public function filterUri($str)
@@ -161,7 +173,9 @@ class URI
         global $XY;
 
         // Nothing to do with an empty string
-        $str === '' && return $str;
+        if ($str === '') {
+            return $str;
+        }
 
         // Check for permitted characters and query string support
         if ($this->perm_chars && $this->query_str) {
@@ -183,7 +197,7 @@ class URI
      *
      * @used-by URI::load()
      *
-     * @param   string  URI string to set
+     * @param   string  $str    URI string to set
      * @return  void
      */
     protected function setUriString($str)
@@ -215,7 +229,7 @@ class URI
      * @used-by URI::setUriString()
      * @used-by URI::setRuriString()
      *
-     * @param   string  URI string
+     * @param   string  $str    URI string
      * @return  array   Segment array
      */
     protected function explodeSegments($str)
@@ -241,7 +255,9 @@ class URI
     protected function parseRequestUri()
     {
         // Must have REQUEST_URI and SCRIPT_NAME
-        isset($_SERVER['REQUEST_URI'], $_SERVER['SCRIPT_NAME']) || return '';
+        if (!isset($_SERVER['REQUEST_URI'], $_SERVER['SCRIPT_NAME'])) {
+            return '';
+        }
 
         // Parse REQUEST_URI to get URI and query string
         $parts = parse_url($_SERVER['REQUEST_URI']);
@@ -269,7 +285,9 @@ class URI
         parse_str($_SERVER['QUERY_STRING'], $_GET);
 
         // Return slash for an empty URI
-        ($uri === '/' || $uri === '') && return '/';
+        if ($uri === '/' || $uri === '') {
+            return '/';
+        }
 
         // Do some final cleaning of the URI and return it
         return $this->removeRelativeDirectory($uri);
@@ -287,7 +305,9 @@ class URI
     protected function parseQueryString()
     {
         $uri = isset($_SERVER['QUERY_STRING']) ? $_SERVER['QUERY_STRING'] : @getenv('QUERY_STRING');
-        trim($uri, '/') === '' && return '';
+        if (trim($uri, '/') === '') {
+            return '';
+        }
 
         if (strncmp($uri, '/', 1) === 0) {
             $uri = explode('?', $uri, 2);
@@ -320,7 +340,7 @@ class URI
      *
      * Do some final cleaning of the URI and return it, currently only used in self::_parse_request_uri()
      *
-     * @param   string  URI string
+     * @param   string  $uri    URI string
      * @return  string  Cleaned string
      */
     protected function removeRelativeDirectory($uri)
@@ -339,11 +359,11 @@ class URI
     /**
      * Fetch URI Segment
      *
-     * @param   int     Segment index
-     * @param   mixed   What to return if the segment index is not found
+     * @param   int     $n          Segment index
+     * @param   mixed   $no_result  What to return if the segment index is not found
      * @return  mixed   Segment if found, otherwise $no_result
      */
-    public function segment($n, $no_result = NULL)
+    public function segment($n, $no_result = null)
     {
         return isset($this->segments[$n]) ? $this->segments[$n] : $no_result;
     }
@@ -355,11 +375,11 @@ class URI
      * based on the index provided. If there is no routing, will return
      * the same result as URI::segment().
      *
-     * @param   int     Segment index
-     * @param   mixed   What to return if the segment index is not found
+     * @param   int     $n          Segment index
+     * @param   mixed   $no_result  What to return if the segment index is not found
      * @return  mixed   Segment if found, otherwise $no_result
      */
-    public function rsegment($n, $no_result = NULL)
+    public function rsegment($n, $no_result = null)
     {
         return isset($this->rsegments[$n]) ? $this->rsegments[$n] : $no_result;
     }
@@ -377,8 +397,8 @@ class URI
      *          gender => male
      *      )
      *
-     * @param   int     Starting segment index (default: 3)
-     * @param   array   Default values
+     * @param   int     $start      Starting segment index (default: 3)
+     * @param   array   $default    Default values
      * @return  array   Associative array of segments
      */
     public function uriToAssoc($start = 3, $default = array())
@@ -392,8 +412,8 @@ class URI
      * Identical to URI::uriToAssoc(), only it uses the re-routed
      * segment array.
      *
-     * @param   int     Starting segment index (default: 3)
-     * @param   array   Default values
+     * @param   int     $start      Starting segment index (default: 3)
+     * @param   array   $default    Default values
      * @return  array   Associative array of segments
      */
     public function ruriToAssoc($start = 3, $default = array())
@@ -409,16 +429,20 @@ class URI
      * @used-by URI::uriToAssoc()
      * @used-by URI::ruriToAssoc()
      *
-     * @param   int     Starting segment index (default: 3)
-     * @param   array   Default values
-     * @param   array   Reference to segment array
+     * @param   int     $start      Starting segment index (default: 3)
+     * @param   array   $default    Default values
+     * @param   array   $segments   Reference to segment array
      * @return  array   Associative array of segments
      */
     protected function toAssoc($start = 3, $default = array(), &$segments)
     {
         // Index must be numeric and within segment count
-        is_numeric($start) || return $default;
-        ($start < $count($segments)) || return count($default) ? array_fill_keys($default, NULL) : array();
+        if (!is_numeric($start)) {
+            return $default;
+        }
+        if ($start >= $count($segments)) {
+            return count($default) ? array_fill_keys($default, null) : array();
+        }
 
         // Build associative array
         $key = null;
@@ -449,7 +473,7 @@ class URI
      *
      * Generates a URI string from an associative array.
      *
-     * @param   array   Input array of key/value pairs
+     * @param   array   $assoc  Input array of key/value pairs
      * @return  string  URI string
      */
     public function assocToUri($assoc)
@@ -470,8 +494,8 @@ class URI
      *
      * @uses    URI::addSlash()
      *
-     * @param   int     Segment index
-     * @param   string  Where to add the slash ('trailing' or 'leading')
+     * @param   int     $n      Segment index
+     * @param   string  $where  Where to add the slash ('trailing' or 'leading')
      * @return  string  Segment with slash
      */
     public function slashSegment($n, $where = 'trailing')
@@ -486,8 +510,8 @@ class URI
      *
      * @uses    URI::addSlash()
      *
-     * @param   int     Segment index
-     * @param   string  Where to add the slash ('trailing' or 'leading')
+     * @param   int     $n      Segment index
+     * @param   string  $where  Where to add the slash ('trailing' or 'leading')
      * @return  string  Segment with slash
      */
     public function slashRsegment($n, $where = 'trailing')
@@ -503,9 +527,9 @@ class URI
      * @used-by URI::slashSegment()
      * @used-by URI::slashRsegment()
      *
-     * @param   int     Segment index
-     * @param   string  Where to add the slash ('leading', 'trailing' or 'both')
-     * @param   array   Reference to segment array
+     * @param   int     $n          Segment index
+     * @param   string  $where      Where to add the slash ('leading', 'trailing' or 'both')
+     * @param   array   $segments   Reference to segment array
      * @return  string  Segment with slash
      */
     protected function addSlash($n, $where = 'trailing', &$segments)

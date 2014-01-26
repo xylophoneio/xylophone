@@ -85,7 +85,7 @@ class Utf8
      *
      * @uses    Utf8::isAscii()
      *
-     * @param   string  String to clean
+     * @param   string  $str    String to clean
      * @return  string  Cleaned string
      */
     public function cleanString($str)
@@ -102,7 +102,7 @@ class Utf8
      *
      * @uses    Output::removeInvisibleCharacters()
      *
-     * @param   string  String to clean
+     * @param   string  $str    String to clean
      * @return  string  Cleaned string
      */
     public function safeAsciiForXml($str)
@@ -116,8 +116,8 @@ class Utf8
      *
      * Attempts to convert a string to UTF-8.
      *
-     * @param   string  Input string
-     * @param   string  Input encoding
+     * @param   string  $str        Input string
+     * @param   string  $encoding   Input encoding
      * @return  mixed   UTF-8 encoded string or FALSE on failure
      */
     public function convertToUtf8($str, $encoding) {
@@ -137,7 +137,7 @@ class Utf8
      *
      * Tests if a string is standard 7-bit ASCII or not.
      *
-     * @param   string  String to check
+     * @param   string  $str    String to check
      * @return  bool    TRUE if ASCII, otherwise FALSE
      */
     public function isAscii($str)

@@ -122,27 +122,35 @@ class Logger
     /**
      * Log a message
      *
-     * @param   string  Error level name
-     * @param   string  Error message
-     * @param   array   Error context
+     * @param   string  $level      Error level name
+     * @param   string  $msg        Error message
+     * @param   array   $context    Error context
      * @return  void
      */
     public function log($level, $msg, $context = null)
     {
         // Check enabled
-        $this->enabled || return;
+        if (!$this->enabled) {
+            return;
+        }
 
         // Check level
         $level = strtolower($level);
-        isset($this->levels[$level]) || return;
+        if (!isset($this->levels[$level])) {
+            return;
+        }
 
         // Check threshold
-        $this->levels[$level] <= $this->threshold || isset($this->enabled_levels[$level]) || return;
+        if ($this->levels[$level] > $this->threshold && !isset($this->enabled_levels[$level])) {
+            return;
+        }
 
         // Set file path, check if exists, and open
         $filepath = $this->path.'log-'.date('Y-m-d').'.'.$this->file_ext;
         $newfile = !file_exists($filepath);
-        $fp = @fopen($filepath, FOPEN_WRITE_CREATE) || return;
+        if (!($fp = @fopen($filepath, FOPEN_WRITE_CREATE))) {
+            return;
+        }
 
         // Add protection to new php files and compose message
         $message = ($newfile && $this->file_ext === 'php') ?
@@ -160,8 +168,8 @@ class Logger
     /**
      * Log a debug message
      *
-     * @param   string  Error message
-     * @param   array   Error context
+     * @param   string  $msg        Error message
+     * @param   array   $context    Error context
      * @return  void
      */
     public function debug($msg, $context = null)
@@ -172,8 +180,8 @@ class Logger
     /**
      * Log an info message
      *
-     * @param   string  Error message
-     * @param   array   Error context
+     * @param   string  $msg        Error message
+     * @param   array   $context    Error context
      * @return  void
      */
     public function info($msg, $context = null)
@@ -184,8 +192,8 @@ class Logger
     /**
      * Log a notice message
      *
-     * @param   string  Error message
-     * @param   array   Error context
+     * @param   string  $msg        Error message
+     * @param   array   $context    Error context
      * @return  void
      */
     public function notice($msg, $context = null)
@@ -196,8 +204,8 @@ class Logger
     /**
      * Log a warning message
      *
-     * @param   string  Error message
-     * @param   array   Error context
+     * @param   string  $msg        Error message
+     * @param   array   $context    Error context
      * @return  void
      */
     public function warning($msg, $context = null)
@@ -208,8 +216,8 @@ class Logger
     /**
      * Log an error message
      *
-     * @param   string  Error message
-     * @param   array   Error context
+     * @param   string  $msg        Error message
+     * @param   array   $context    Error context
      * @return  void
      */
     public function error($msg, $context = null)
@@ -220,8 +228,8 @@ class Logger
     /**
      * Log a critical message
      *
-     * @param   string  Error message
-     * @param   array   Error context
+     * @param   string  $msg        Error message
+     * @param   array   $context    Error context
      * @return  void
      */
     public function critical($msg, $context = null)
@@ -232,8 +240,8 @@ class Logger
     /**
      * Log an alert message
      *
-     * @param   string  Error message
-     * @param   array   Error context
+     * @param   string  $msg        Error message
+     * @param   array   $context    Error context
      * @return  void
      */
     public function alert($msg, $context = null)
@@ -244,8 +252,8 @@ class Logger
     /**
      * Log an emergency message
      *
-     * @param   string  Error message
-     * @param   array   Error context
+     * @param   string  $msg        Error message
+     * @param   array   $context    Error context
      * @return  void
      */
     public function emergency($msg, $context = null)

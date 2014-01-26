@@ -58,11 +58,11 @@ class Lang
     /**
      * Load a language file
      *
-     * @param   mixed   Language file name
-     * @param   string  Language name (english, etc.)
-     * @param   bool    Whether to return the loaded array of translations
-     * @param   bool    Whether to add suffix to $langfile
-     * @param   string  Alternative path to look for the language file
+     * @param   mixed   $langfile   Language file name
+     * @param   string  $idiom      Language name (english, etc.)
+     * @param   bool    $return     Whether to return the loaded array of translations
+     * @param   bool    $add_suffix Whether to add suffix to $langfile
+     * @param   string  $alt_path   Alternative path to look for the language file
      * @return  mixed   Array containing translations, if $return is set to TRUE
      */
     public function load($langfile, $idiom = '', $return = false, $add_suffix = true, $alt_path = '')
@@ -73,21 +73,25 @@ class Lang
             $return && $return false;
 
             foreach ($langfile as $lang) {
-                $this->load($lang, $idiom, $return, $add_suffix, $alt_path) || return false;
+                if (!$this->load($lang, $idiom, $return, $add_suffix, $alt_path)) {
+                    return false;
+                }
             }
 
             return true;
         }
 
         $langfile = str_replace('.php', '', $langfile);
-        $add_suffix === TRUE && $langfile = str_replace('_lang', '', $langfile).'_lang';
+        $add_suffix === true && $langfile = str_replace('_lang', '', $langfile).'_lang';
         $langfile .= '.php';
 
         if (empty($idiom) || !ctype_alpha($idiom)) {
             $idiom = empty($XY->config['language']) ? 'english' : $XY->config['language'];
         }
 
-        !$return && isset($this->is_loaded[$langfile]) && $this->is_loaded[$langfile] === $idiom && return;
+        if (!$return && isset($this->is_loaded[$langfile]) && $this->is_loaded[$langfile] === $idiom) {
+            return;
+        }
 
         // Load the base file, so any others found can override it
         $path = 'language/'.$idiom.'/'.$langfile;
@@ -107,11 +111,15 @@ class Lang
 
         if (!isset($lang) || !is_array($lang)) {
             $XY->logger->error('Language file contains no data: '.$path);
-            $return && return array();
+            if ($return) {
+                return array();
+            }
             return;
         }
 
-        $return && return $lang;
+        if ($return) {
+            return $lang;
+        }
 
         $this->is_loaded[$langfile] = $idiom;
         $this->language = array_merge($this->language, $lang);
@@ -125,8 +133,8 @@ class Lang
      *
      * Fetches a single line of text from the language array
      *
-     * @param   string  Language line key
-     * @param   bool    Whether to log an error message if the line is not found
+     * @param   string  $line       Language line key
+     * @param   bool    $log_errors Whether to log an error message if the line is not found
      * @return  string  Translation
      */
     public function line($line, $log_errors = true)

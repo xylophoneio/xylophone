@@ -147,7 +147,7 @@ class Output
         $output === '' && $output = implode($this->output_stack);
 
         // Is minify requested?
-        $XY->config['minify_output'] === TRUE && $output = $this->minify($output, $this->mime_type);
+        $XY->config['minify_output'] === true && $output = $this->minify($output, $this->mime_type);
 
         // Do we need to write a cache file? Only if the controller does not have its
         // own output() method and we are not dealing with a cache file, which we
@@ -302,7 +302,9 @@ class Output
         // We only need [x][0] from our multi-dimensional array
         $headers = array_merge(array_map('array_shift', $this->headers), headers_list());
 
-        (empty($headers) || empty($header) && return null;
+        if (empty($headers) || empty($header)) {
+            return null;
+        }
 
         for ($i = 0, $c = count($headers); $i < $c; $i++) {
             if (strncasecmp($header, $headers[$i], $l = strlen($header)) === 0) {
@@ -339,7 +341,7 @@ class Output
 
         // Ensure charset and add type header
         empty($charset) && $charset = $XY->config['charset'];
-        $header = 'Content-Type: '.$mime_type.(empty($charset) ? NULL : '; charset='.$charset);
+        $header = 'Content-Type: '.$mime_type.(empty($charset) ? null : '; charset='.$charset);
         $this->headers[] = array($header, true);
 
         return $this;
@@ -587,7 +589,9 @@ class Output
 
         // Get cache file path and open file
         $file = $this->getCachePath();
-        ($file && @file_exists($file) && ($fp = @fopen($file, FOPEN_READ))) || return false;
+        if (!$file || !@file_exists($file) || !($fp = @fopen($file, FOPEN_READ))) {
+            return false;
+        }
 
         // Lock, read, unlock, close
         flock($fp, LOCK_SH);
@@ -596,7 +600,9 @@ class Output
         fclose($fp);
 
         // Look for embedded serialized file info.
-        preg_match('/^(.*)ENDXY--->/', $cache, $match) || return false;
+        if (!preg_match('/^(.*)ENDXY--->/', $cache, $match)) {
+            return false;
+        }
         $cache_info = unserialize($match[1]);
         $expire = $cache_info['expire'];
         $last_modified = filemtime($file);
@@ -686,9 +692,13 @@ class Output
      */
     public function minify($output, $type = 'text/html')
     {
+        global $XY;
+
         switch ($type) {
             case 'text/html':
-                ($size_before = strlen($output)) !== 0  || return '';
+                if (($size_before = strlen($output)) === 0) {
+                    return '';
+                }
 
                 // Find all the <pre>,<code>,<textarea>, and <javascript> tags
                 // We'll want to return them to this unprocessed state later.

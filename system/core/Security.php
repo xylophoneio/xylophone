@@ -134,11 +134,15 @@ class Security
         global $XY;
 
         // If it's not a POST request we will set the CSRF cookie
-        strtoupper($_SERVER['REQUEST_METHOD']) === 'POST'|| return $this->csrfSetCookie();
+        if (strtoupper($_SERVER['REQUEST_METHOD']) !== 'POST') {
+            return $this->csrfSetCookie();
+        }
 
         // Check if URI has been whitelisted from CSRF checks
         $exclude_uris = $XY->config['csrf_exclude_uris'];
-        $exclude_uris && in_array($XY->uri->uriString(), $exclude_uris) && return $this;
+        if ($exclude_uris && in_array($XY->uri->uriString(), $exclude_uris)) {
+            return $this;
+        }
 
         // Do the tokens exist in both the _POST and _COOKIE arrays and match?
         (isset($_POST[$this->csrf_token_name], $_COOKIE[$this->csrf_cookie_name]) &&
@@ -173,7 +177,9 @@ class Security
 
         $expire = time() + $this->csrf_expire;
         $secure_cookie = (bool)$XY->config['cookie_secure'];
-        $secure_cookie && !$XY->isHttps() && return false;
+        if ($secure_cookie && !$XY->isHttps()) {
+            return false;
+        }
 
         setcookie($this->csrf_cookie_name, $this->csrf_hash, $expire, $XY->config['cookie_path'],
             $XY->config['cookie_domain'], $secure_cookie, $XY->config['cookie_httponly']);
@@ -235,8 +241,8 @@ class Security
      *      vulnerabilities along with a few other hacks I've
      *      harvested from examining vulnerabilities in other programs.
      *
-     * @param   mixed   Input data string or array
-     * @param   bool    Whether the input is an image
+     * @param   mixed   $str        Input data string or array
+     * @param   bool    $is_image   Whether the input is an image
      * @return  string
      */
     public function xssClean($str, $is_image = false)
@@ -328,7 +334,9 @@ class Security
 
         // After all of the character conversion is done on images, return
         // whether any unwanted, likely XSS, code was found.
-        $is_image && return ($str === $converted_string);
+        if ($is_image) {
+            return ($str === $converted_string);
+        }
 
         $XY->logger->debug('XSS Filtering completed');
         return $str;
@@ -360,15 +368,17 @@ class Security
      *
      * @link    http://php.net/html-entity-decode
      *
-     * @param   string  Input
-     * @param   string  Character set
+     * @param   string  $str        Input
+     * @param   string  $charset    Character set
      * @return  string  Decoded string
      */
     public function entityDecode($str, $charset = null)
     {
         global $XY;
 
-        strpos($str, '&') === FALSE && return $str;
+        if (strpos($str, '&') === false) {
+            return $str;
+        }
 
         empty($charset) && $charset = $XY->config['charset'];
 
@@ -385,8 +395,8 @@ class Security
     /**
      * Sanitize Filename
      *
-     * @param   string  Input file name
-     * @param   bool    Whether to preserve paths
+     * @param   string  $str            Input file name
+     * @param   bool    $relative_path  Whether to preserve paths
      * @return  string  Sanitized filename
      */
     public function sanitizeFilename($str, $relative_path = false)
@@ -413,7 +423,7 @@ class Security
     /**
      * Strip Image Tags
      *
-     * @param   string  Input string
+     * @param   string  $str    Input string
      * @return  string  Stripped string
      */
     public function stripImageTags($str)
@@ -429,7 +439,7 @@ class Security
      *
      * @used-by Security::xssClean()
      *
-     * @param   array   Matches
+     * @param   array   $matches    Matches
      * @return  string  Compact string
      */
     protected function compactExplodedWords($matches)
@@ -456,8 +466,8 @@ class Security
      *
      * @used-by Security::xssClean()
      *
-     * @param   string  The string to check
-     * @param   bool    Whether the input is an image
+     * @param   string  $str        The string to check
+     * @param   bool    $is_image   Whether the input is an image
      * @return  string  The string with the evil attributes removed
      */
     protected function removeEvilAttributes($str, $is_image)
@@ -503,7 +513,7 @@ class Security
      *
      * @used-by Security::xssClean()
      *
-     * @param   array   Matches
+     * @param   array   $matches    Matches
      * @return  string  Sanitized string
      */
     protected function sanitizeNaughtyHtml($matches)
@@ -524,7 +534,7 @@ class Security
      *
      * @used-by Security::xssClean()
      *
-     * @param   array   Matches
+     * @param   array   $matches    Matches
      * @return  string  Cleaned string
      */
     protected function jsLinkRemoval($matches)
@@ -545,7 +555,7 @@ class Security
      *
      * @used-by Security::xssClean()
      *
-     * @param   array   Matches
+     * @param   array   $matches    Matches
      * @return  string  Cleaned string
      */
     protected function jsImgRemoval($matches)
@@ -560,7 +570,7 @@ class Security
      *
      * @used-by Security::xssClean()
      *
-     * @param   array   Matches
+     * @param   array   $matches    Matches
      * @return  string  Cleaned string
      */
     protected function convertAttribute($matches)
@@ -576,7 +586,7 @@ class Security
      * @used-by Security::jsImgRemoval()
      * @used-by Security::jsLinkRemoval()
      *
-     * @param   string  Input string
+     * @param   string  $str    Input string
      * @return  string  Filtered string
      */
     protected function filterAttributes($str)
@@ -596,7 +606,7 @@ class Security
      *
      * @used-by Security::xssClean()
      *
-     * @param   array   Matches
+     * @param   array   $matches    Matches
      * @return  string  Cleaned string
      */
     protected function decodeEntity($matches)
@@ -610,7 +620,7 @@ class Security
      *
      * @used-by Security::xssClean()
      *
-     * @param   string  Input string
+     * @param   string  $str    Input string
      * @return  string  Validated string
      */
     protected function validateEntities($str)
@@ -635,7 +645,7 @@ class Security
      *
      * @used-by Security::xssClean()
      *
-     * @param   string  Input string
+     * @param   string  $str    Input string
      * @return  string  Filtered string
      */
     protected function doNeverAllowed($str)

@@ -108,7 +108,7 @@ class Router
      * Matches any routes that may exist in the config/routes.php file
      * against the URI to determine if the class/method need to be remapped.
      *
-     * @param   mixed   URI string or array of URI segments
+     * @param   mixed   $uri    URI string or array of URI segments
      * @return  string  Route string
      */
     public function parseRoutes($uri)
@@ -117,7 +117,9 @@ class Router
         is_string($uri) || $uri = implode('/', $uri);
 
         // Is there a literal match? If so we're done
-        !isset($this->routes[$uri]) || !is_string($this->routes[$uri])) || return $this->routes[$uri];
+        if (isset($this->routes[$uri]) && is_string($this->routes[$uri])) {
+            return $this->routes[$uri];
+        }
 
         // Loop through the route array looking for wildcards
         foreach ($this->routes as $key => $val) {
@@ -182,7 +184,7 @@ class Router
      *      method  Method, which may be 'index'
      *      args    Array of remaining segments as arguments
      *
-     * @param   mixed   Route string or segments
+     * @param   mixed   $route  Route string or segments
      * @return  mixed   Route stack array if valid, otherwise FALSE
      */
     public function validateRoute($route)
@@ -190,7 +192,9 @@ class Router
         global $XY;
 
         // Check for a passed or default route and convert to array
-        !empty($route) || ($route = $this->default_controller) || return false;
+        if (empty($route) && !($route = $this->default_controller)) {
+            return false;
+        }
         is_array($route) || $route = explode('/', $route);
 
         // Search each namespace for the route
@@ -244,10 +248,10 @@ class Router
     /**
      * Make a route stack
      *
-     * @param   string  Namespace
-     * @param   string  Path
-     * @param   string  Class name
-     * @param   mixed   Method name string or array of method and arguments
+     * @param   string  $ns     Namespace
+     * @param   string  $path   Path
+     * @param   string  $class  Class name
+     * @param   mixed   $method Method name string or array of method and arguments
      * @return  array   Route stack array
      */
     public function makeStack($ns, $path, $class, $method)
@@ -286,7 +290,7 @@ class Router
      *
      * Identifies the 404 or error override route, if defined, and validates it.
      *
-     * @param   boolean TRUE for 404 route
+     * @param   bool    $is404  TRUE for 404 route
      * @return  mixed   FALSE if route doesn't exist, otherwise array of 4+ segments
      */
     public function getErrorRoute($is404 = false)

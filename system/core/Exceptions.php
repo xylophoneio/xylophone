@@ -75,10 +75,10 @@ class Exceptions
      *
      * @used-by Xylophone::exceptionHandler()
      *
-     * @param   int     Log level
-     * @param   string  Error message
-     * @param   string  File path
-     * @param   int     Line number
+     * @param   int     $severity   Log level
+     * @param   string  $message    Error message
+     * @param   string  $filepath   File path
+     * @param   int     $line       Line number
      * @return  void
      */
     public function logException($severity, $message, $filepath, $line)
@@ -94,8 +94,8 @@ class Exceptions
      * @uses    Exceptions::showError()
      * @used-by Xylophone::show404()
      *
-     * @param   string  Page URI
-     * @param   bool    Whether to log the error
+     * @param   string  $page       Page URI
+     * @param   bool    $log_error  Whether to log the error
      * @return  void
      */
     public function show404($page = '', $log_error = true)
@@ -127,10 +127,10 @@ class Exceptions
      * @used-by Exceptions::show404()
      * @used-by Xylophone::showError()
      *
-     * @param   string  Page heading
-     * @param   mixed   Error message or array of messages
-     * @param   string  Template name
-     * @param   int     Status code (default: 500)
+     * @param   string  $heading        Page heading
+     * @param   mixed   $message        Error message or array of messages
+     * @param   string  $template       Template name
+     * @param   int     $status_code    Status code (default: 500)
      * @return  string  Error page output
      */
     public function showError($heading, $message, $template = 'error_general', $status_code = 500)
@@ -183,7 +183,9 @@ class Exceptions
             array_unshift($route['args'], $heading);
 
             // Ensure "routed" is not set
-            !isset($XY->routed) || unset($XY->routed);
+            if (isset($XY->routed)) {
+                unset($XY->routed);
+            }
 
             // Load the error Controller as "routed" and call the method
             if ($XY->load->controller($route, 'routed')) {
@@ -205,10 +207,10 @@ class Exceptions
      *
      * @used-by Xylophone::exceptionHandler()
      *
-     * @param   int     Error level
-     * @param   string  Error message
-     * @param   string  File path
-     * @param   int     Line number
+     * @param   int     $severity   Error level
+     * @param   string  $message    Error message
+     * @param   string  $filepath   File path
+     * @param   int     $line       Line number
      * @return  string  Error page output
      */
     public function showPhpError($severity, $message, $filepath, $line)

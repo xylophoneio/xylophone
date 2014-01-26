@@ -76,7 +76,7 @@ class Hooks
      *
      * @used-by Xylophone::play()
      *
-     * @param   string  Hook name
+     * @param   string  $which Hook name
      * @return  bool    TRUE on success, otherwise FALSE
      */
     public function callHook($which = '')
@@ -84,7 +84,9 @@ class Hooks
         global $XY;
 
         // Nothing to do if disabled, in progress, or no hook
-        (!$this->enabled || $this->in_progress || !isset($this->hooks[$which])) && return false;
+        if (!$this->enabled || $this->in_progress || !isset($this->hooks[$which])) {
+            return false;
+        }
 
         // Iterate all calls for this hook
         $this->in_progress = true;

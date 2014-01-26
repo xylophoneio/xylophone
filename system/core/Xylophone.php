@@ -547,7 +547,7 @@ class Xylophone
      *
      * @param   mixed   $namespace  Top-level namespace or array of namespace/path pairs
      * @param   string  $path       Path to source files
-     * @return  boolean TRUE on success, otherwise FALSE
+     * @return  bool    TRUE on success, otherwise FALSE
      */
     public function addNamespace($namespace, $path)
     {
@@ -601,7 +601,7 @@ class Xylophone
      * Adds a path where Loader can find view files.
      *
      * @param   mixed   $view_path  View path or array of paths
-     * @return  boolean TRUE on success, otherwise FALSE
+     * @return  bool    TRUE on success, otherwise FALSE
      */
     public function addViewPath($view_path)
     {
@@ -701,7 +701,7 @@ class Xylophone
      *
      * @param   mixed   $class  Class name or object
      * @param   string  $method Method
-     * @return  boolean TRUE if publicly callable, otherwise FALSE
+     * @return  bool    TRUE if publicly callable, otherwise FALSE
      */
     public function isCallable($class, $method)
     {

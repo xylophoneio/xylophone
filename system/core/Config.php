@@ -86,12 +86,12 @@ class Config implements ArrayAccess
     /**
      * Load Config File
      *
-     * @param   mixed   Configuration file name or array of file names
-     * @param   bool    Whether configuration values should be loaded into their own section
-     * @param   bool    Whether to just return FALSE or display an error message
+     * @param   mixed   $file       Configuration file name or array of file names
+     * @param   bool    $sections   Whether configuration values should be loaded into their own section
+     * @param   bool    $graceful   Whether to just return FALSE or display an error message
      * @return  bool    TRUE if the file was loaded correctly or FALSE on failure
      */
-    public function load($file = '', $use_sections = false, $fail_gracefully = false)
+    public function load($file = '', $sections = false, $graceful = false)
     {
         global $XY;
 
@@ -100,21 +100,27 @@ class Config implements ArrayAccess
             $name = ($name === '') ? 'config' : str_replace('.php', '', $name);
 
             // Make sure file isn't already loaded
-            in_array($name, $this->is_loaded) && continue;
+            if (in_array($name, $this->is_loaded)) {
+                continue;
+            }
 
             // Get config array and check result
             $config = $this->get($name.'.php', 'config');
             if ($config === false) {
-                $fail_gracefully && return false;
+                if ($graceful) {
+                    return false;
+                }
                 $XY->showError('The configuration file '.$name.'.php does not exist.');
             }
             else if (is_string($config)) {
-                $fail_gracefully && return false;
+                if ($graceful) {
+                    return false;
+                }
                 $XY->showError('Your '.$name.'.php file does not appear to contain a valid configuration array.');
             }
 
             // Check for sections
-            if ($use_sections === true) {
+            if ($sections === true) {
                 // Merge or set section
                 $this->config[$name] = isset($this->config[$name]) ?
                     array_merge_recursive($this->config[$name], $config) : $this->config[$name] = $config;
@@ -139,8 +145,8 @@ class Config implements ArrayAccess
      *
      * @uses    Config::getExtra()
      *
-     * @param   string  Config file name
-     * @param   string  Array name to look for
+     * @param   string  $file   Config file name
+     * @param   string  $name   Array name to look for
      * @return  mixed   Merged config if found, TRUE if no array requested,
      *                  file path if array is bad, otherwise FALSE
      */
@@ -160,9 +166,9 @@ class Config implements ArrayAccess
      *
      * @used-by Config::get()
      *
-     * @param   string  Config file name
-     * @param   string  Array name to look for
-     * @param   array   Reference to extras array
+     * @param   string  $_file      Config file name
+     * @param   string  $_name      Array name to look for
+     * @param   array   $_extras    Reference to extras array
      * @return  mixed   Merged config if found, TRUE if no array requested,
      *                  file path if array is bad, otherwise FALSE
      */
@@ -187,9 +193,7 @@ class Config implements ArrayAccess
                     if ($_extras !== false) {
                         // Get associative array of public vars
                         foreach (get_defined_vars() as $_key => $_var) {
-                            if ($_key[0] != '_' && $_key != $_name) {
-                                $_extras[$_key] = $_var;
-                            }
+                            $_key[0] !== '_' && $_key !== $_name && $_extras[$_key] = $_var;
                         }
                     }
 
@@ -201,7 +205,9 @@ class Config implements ArrayAccess
                     }
 
                     // Return bad filename if no array
-                    (isset($$_name) && is_array($$_name)) || return $_file_path;
+                    if (!isset($$_name) || !is_array($$_name)) {
+                        return $_file_path;
+                    }
 
                     // Merge config and unset temporary copy
                     $_merged = $_merged === true ? $$_name : array_replace_recursive($_merged, $$_name);
@@ -220,20 +226,22 @@ class Config implements ArrayAccess
     /**
      * Fetch a config file item
      *
-     * @param   string  Config item name
-     * @param   string  Index name
+     * @param   string  $item   Config item name
+     * @param   string  $index  Index name
      * @return  mixed   The configuration item or NULL if the item doesn't exist
      */
     public function item($item, $index = '')
     {
-        $index === '' && return isset($this->config[$item]) ? $this->config[$item] : null;
+        if ($index === '') {
+            return isset($this->config[$item]) ? $this->config[$item] : null;
+        }
         return isset($this->config[$index], $this->config[$index][$item]) ? $this->config[$index][$item] : null;
     }
 
     /**
      * Fetch a config file item with slash appended (if not empty)
      *
-     * @param   string  Config item name
+     * @param   string  $item   Config item name
      * @return  mixed   The configuration item or NULL if the item doesn't exist
      */
     public function slashItem($item)
@@ -255,8 +263,8 @@ class Config implements ArrayAccess
      *
      * @uses    Config::uriString()
      *
-     * @param   mixed   URI string or an array of segments
-     * @param   string  Protocol
+     * @param   mixed   $uri        URI string or an array of segments
+     * @param   string  $protocol   Protocol
      * @return  string  Site URL
      */
     public function siteUrl($uri = '', $protocol = null)
@@ -264,7 +272,9 @@ class Config implements ArrayAccess
         $base_url = $this->slashItem('base_url');
         isset($protocol) && $base_url = $protocol.substr($base_url, strpos($base_url, '://'));
 
-        empty($uri) && return $base_url.$this->item('index_page');
+        if (empty($uri)) {
+            return $base_url.$this->item('index_page');
+        }
 
         $uri = $this->uriString($uri);
 
@@ -296,8 +306,8 @@ class Config implements ArrayAccess
      *
      * @uses    Config::uriString()
      *
-     * @param   mixed   URI string or an array of segments
-     * @param   string  Protocol
+     * @param   mixed   $uri        URI string or an array of segments
+     * @param   string  $protocol   Protocol
      * @return  string  Base URl
      */
     public function baseUrl($uri = '', $protocol = null)
@@ -313,7 +323,7 @@ class Config implements ArrayAccess
      * @used-by Config::siteUrl()
      * @used-by Config::baseUrl()
      *
-     * @param   mixed   URI string or an array of segments
+     * @param   mixed   $uri        URI string or an array of segments
      * @return  string  URI string
      */
     protected function uriString($uri)
@@ -344,8 +354,8 @@ class Config implements ArrayAccess
     /**
      * Set a config file item
      *
-     * @param   mixed   Config item key or array of config items
-     * @param   string  Config item value
+     * @param   mixed   $item   Config item key or array of config items
+     * @param   string  $value  Config item value
      * @return  void
      */
     public function setItem($item, $value = '')
@@ -366,8 +376,8 @@ class Config implements ArrayAccess
      *
      * @interface   ArrayAccess
      *
-     * @param   string  Config item key
-     * @return  boolean TRUE if item exists, otherwise FALSE
+     * @param   string  $offset Config item key
+     * @return  bool    TRUE if item exists, otherwise FALSE
      */
     public function offsetExists($offset)
     {
@@ -379,7 +389,7 @@ class Config implements ArrayAccess
      *
      * @interface   ArrayAccess
      *
-     * @param   string  Config item key
+     * @param   string  $offset Config item key
      * @return  mixed   Config item value
      */
     public function offsetGet($offset)
@@ -392,8 +402,8 @@ class Config implements ArrayAccess
      *
      * @interface   ArrayAccess
      *
-     * @param   string  Config item key
-     * @param   mixed   Config item value
+     * @param   string  $offset Config item key
+     * @param   mixed   $value  Config item value
      * @return  void
      */
     public function offsetSet($offset, $value)
@@ -407,7 +417,7 @@ class Config implements ArrayAccess
      *
      * @interface   ArrayAccess
      *
-     * @param   string  Config item key
+     * @param   string  $offset Config item key
      * @return  void
      */
     public function offsetUnset($offset)
