@@ -30,7 +30,7 @@ namespace Xylophone\core;
 defined('BASEPATH') OR exit('No direct script access allowed');
 
 /**
- * Custom autoloader exception
+ * Custom Autoloader Exception
  *
  * This exception is thrown by the autoloader when a class file cannot be found.
  * Doing so bypasses the fatal class-not-found PHP error and lets the framework
@@ -271,7 +271,7 @@ class Xylophone
     /**
      * Play the Xylophone application
      *
-     * @param   bool    $benchmark  Whether to enable benchmarking
+     * @param   mixed   $benchmark  Initial benchmark time or FALSE
      * @param   array   $config     Optional config overrides
      * @param   array   $routing    Optional routing overrides
      * @return  void
@@ -282,8 +282,9 @@ class Xylophone
         if ($benchmark) {
             // Load Benchmark and initiate timing
             $this->benchmark = $this->loadClass('Benchmark', 'core');
-            $this->benchmark->mark('total_execution_time_start');
-            $this->benchmark->mark('loading_time:_base_classes_start');
+            $this->benchmark->marker['total_execution_time_start'] = $benchmark;
+            $this->benchmark->marker['loading_time:_base_classes_start'] = $benchmark;
+            $benchmark = true;
         }
 
         // Load Config, set overrides, load constants and get autoload config
@@ -382,7 +383,9 @@ class Xylophone
         }
 
         // Now class name must be a string
-        is_string($class) || return false;
+        if (!is_string($class)) {
+            return false;
+        }
 
         // Default name if not provided
         if (empty($name)) {
@@ -528,7 +531,9 @@ class Xylophone
                 ).DIRECTORY_SEPARATOR
 
             // Include file
-            @include($path.$file) && return;
+            if (!@include($path.$file)) {
+                return;
+            }
         }
 
         // File not found - throw exception
@@ -552,7 +557,9 @@ class Xylophone
         // Iterate namespaces
         foreach ($namespace as $ns => $path) {
             // Check for namespace - only application can be global
-            $ns || return false;
+            if (!$ns) {
+                return false;
+            }
 
             // Resolve the path
             foreach ($this->resolve_bases as $base) {
@@ -840,7 +847,9 @@ class Xylophone
     {
         // Should we ignore the error? We'll get the current error_reporting
         // level and add its bits with the severity bits to find out.
-        ($severity & error_reporting()) === $severity || return;
+        if (($severity & error_reporting()) !== $severity) {
+            return;
+        }
 
         // Should we display the error?
         $_error = $this->loadClass('Exceptions', 'core');

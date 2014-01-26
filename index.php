@@ -194,6 +194,9 @@ defined('STDIN') && chdir(dirname(__FILE__));
 // Define BASEPATH for direct access restriction on application scripts
 define('BASEPATH', __DIR__);
 
+// Get initial benchmark if enabled
+$benchmark && $benchmark = microtime(true);
+
 // Get base paths to resolve against
 // We check absolute (or relative to this directory) and relative to includes
 $resolve_bases = array('');
