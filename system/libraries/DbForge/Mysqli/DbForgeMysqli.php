@@ -1,215 +1,169 @@
 <?php
 /**
- * CodeIgniter
+ * Xylophone
  *
- * An open source application development framework for PHP 5.2.4 or newer
+ * An open source HMVC application development framework for PHP 5.3 or newer
+ * Derived from CodeIgniter, Copyright (c) 2008 - 2013, EllisLab, Inc. (http://ellislab.com/)
  *
  * NOTICE OF LICENSE
  *
  * Licensed under the Open Software License version 3.0
  *
  * This source file is subject to the Open Software License (OSL 3.0) that is
- * bundled with this package in the files license.txt / license.rst.  It is
+ * bundled with this package in the files license.txt / license.rst. It is
  * also available through the world wide web at this URL:
  * http://opensource.org/licenses/OSL-3.0
  * If you did not receive a copy of the license and are unable to obtain it
- * through the world wide web, please send an email to
- * licensing@ellislab.com so we can send you a copy immediately.
+ * through the world wide web, please send an email to licensing@xylophone.io
+ * so we can send you a copy immediately.
  *
- * @package		CodeIgniter
- * @author		EllisLab Dev Team
- * @copyright	Copyright (c) 2008 - 2013, EllisLab, Inc. (http://ellislab.com/)
- * @license		http://opensource.org/licenses/OSL-3.0 Open Software License (OSL 3.0)
- * @link		http://codeigniter.com
- * @since		Version 1.0
+ * @package     Xylophone
+ * @author      Xylophone Dev Team, EllisLab Dev Team
+ * @copyright   Copyright (c) 2014, Xylophone Team (http://xylophone.io/)
+ * @license     http://opensource.org/licenses/OSL-3.0 Open Software License (OSL 3.0)
+ * @link        http://xylophone.io
+ * @since       Version 1.0
  * @filesource
  */
+namespace Xylophone\libraries\DbForge\Mysqli;
+
 defined('BASEPATH') OR exit('No direct script access allowed');
 
 /**
- * MySQLi Forge Class
+ * MySQLi Database Forge Class
  *
- * @category	Database
- * @author		EllisLab Dev Team
- * @link		http://codeigniter.com/user_guide/database/
+ * @package     Xylophone
+ * @subpackage  libraries/DbForge/Mysqli
+ * @link        http://xylophone.io/user_guide/database/
  */
-class CI_DB_mysqli_forge extends CI_DB_forge {
+class DbForgeMysqli extends \Xylophone\libraries\DbForge\DbForge
+{
+    /** @var    string  CREATE DATABASE statement */
+    protected $db_create_database = 'CREATE DATABASE %s CHARACTER SET %s COLLATE %s';
 
-	/**
-	 * CREATE DATABASE statement
-	 *
-	 * @var	string
-	 */
-	protected $_create_database	= 'CREATE DATABASE %s CHARACTER SET %s COLLATE %s';
+    /** @var    bool    Whether table keys are created from within the CREATE TABLE statement */
+    protected $db_create_table_keys = true;
 
-	/**
-	 * CREATE TABLE keys flag
-	 *
-	 * Whether table keys are created from within the
-	 * CREATE TABLE statement.
-	 *
-	 * @var	bool
-	 */
-	protected $_create_table_keys	= TRUE;
+    /** @var    array   UNSIGNED support */
+    protected $db_unsigned = array(
+        'TINYINT',
+        'SMALLINT',
+        'MEDIUMINT',
+        'INT',
+        'INTEGER',
+        'BIGINT',
+        'REAL',
+        'DOUBLE',
+        'DOUBLE PRECISION',
+        'FLOAT',
+        'DECIMAL',
+        'NUMERIC'
+    );
 
-	/**
-	 * UNSIGNED support
-	 *
-	 * @var	array
-	 */
-	protected $_unsigned		= array(
-		'TINYINT',
-		'SMALLINT',
-		'MEDIUMINT',
-		'INT',
-		'INTEGER',
-		'BIGINT',
-		'REAL',
-		'DOUBLE',
-		'DOUBLE PRECISION',
-		'FLOAT',
-		'DECIMAL',
-		'NUMERIC'
-	);
+    /** @var    string  NULL value representation in CREATE/ALTER TABLE statements */
+    protected $db_null = 'NULL';
 
-	/**
-	 * NULL value representation in CREATE/ALTER TABLE statements
-	 *
-	 * @var	string
-	 */
-	protected $_null		= 'NULL';
+    /**
+     * Constructor
+     *
+     * @param   array   $config     Config params
+     * @param   array   $extras     Extra config params
+     * @return  void
+     */
+    public function __construct($config, $extras)
+    {
+        parent::__construct($config, $extras);
+        $this->db_create_table .= ' DEFAULT CHARSET '.$this->db->char_set.' COLLATE '.$this->db->dbcollat;
+    }
 
-	// --------------------------------------------------------------------
+    /**
+     * ALTER TABLE Query
+     *
+     * @param   string  $alter_type ALTER type
+     * @param   string  $table      Table name
+     * @param   mixed   $field      Column definition
+     * @return  mixed   ALTER string or array of strings
+     */
+    protected function alterTableQuery($alter_type, $table, $field)
+    {
+        if ($alter_type === 'DROP') {
+            return parent::alterTableQuery($alter_type, $table, $field);
+        }
 
-	/**
-	 * Class constructor
-	 *
-	 * @param	object	&$db	Database object
-	 * @return	void
-	 */
-	public function __construct(&$db)
-	{
-		parent::__construct($db);
+        $sql = 'ALTER TABLE '.$this->db->escapeIdentifiers($table);
+        for ($i = 0, $c = count($field); $i < $c; $i++) {
+            if ($field[$i]['_literal'] !== false) {
+                $field[$i] = ($alter_type === 'ADD') ? "\n\tADD ".$field[$i]['_literal'] :
+                    "\n\tMODIFY ".$field[$i]['_literal'];
+            }
+            else {
+                if ($alter_type === 'ADD') {
+                    $field[$i]['_literal'] = "\n\tADD ";
+                }
+                else {
+                    $field[$i]['_literal'] = empty($field[$i]['new_name']) ? "\n\tMODIFY " : "\n\tCHANGE ";
+                }
 
-		$this->_create_table .= ' DEFAULT CHARSET '.$this->db->char_set.' COLLATE '.$this->db->dbcollat;
-	}
+                $field[$i] = $field[$i]['_literal'].$this->processColumn($field[$i]);
+            }
+        }
 
-	// --------------------------------------------------------------------
+        return array($sql.implode(',', $field));
+    }
 
-	/**
-	 * ALTER TABLE
-	 *
-	 * @param	string	$alter_type	ALTER type
-	 * @param	string	$table		Table name
-	 * @param	mixed	$field		Column definition
-	 * @return	string|string[]
-	 */
-	protected function _alter_table($alter_type, $table, $field)
-	{
-		if ($alter_type === 'DROP')
-		{
-			return parent::_alter_table($alter_type, $table, $field);
-		}
+    /**
+     * Process column
+     *
+     * @param   array   $field  Field definition
+     * @return  string  Column definition string
+     */
+    protected function processColumn($field)
+    {
+        $extra_clause = isset($field['after']) ? ' AFTER '.$this->db->escapeIdentifiers($field['after']) : '';
 
-		$sql = 'ALTER TABLE '.$this->db->escape_identifiers($table);
-		for ($i = 0, $c = count($field); $i < $c; $i++)
-		{
-			if ($field[$i]['_literal'] !== FALSE)
-			{
-				$field[$i] = ($alter_type === 'ADD')
-						? "\n\tADD ".$field[$i]['_literal']
-						: "\n\tMODIFY ".$field[$i]['_literal'];
-			}
-			else
-			{
-				if ($alter_type === 'ADD')
-				{
-					$field[$i]['_literal'] = "\n\tADD ";
-				}
-				else
-				{
-					$field[$i]['_literal'] = empty($field[$i]['new_name']) ? "\n\tMODIFY " : "\n\tCHANGE ";
-				}
+        if (empty($extra_clause) && isset($field['first']) && $field['first'] === true) {
+            $extra_clause = ' FIRST';
+        }
 
-				$field[$i] = $field[$i]['_literal'].$this->_process_column($field[$i]);
-			}
-		}
+        return $this->db->escapeIdentifiers($field['name']).
+            (empty($field['new_name']) ? '' : ' '.$this->db->escapeIdentifiers($field['new_name'])).
+            ' '.$field['type'].$field['length'].$field['unsigned'].$field['null'].$field['default'].
+            $field['auto_increment'].$field['unique'].$extra_clause;
+    }
 
-		return array($sql.implode(',', $field));
-	}
+    /**
+     * Process indexes
+     *
+     * @param   string  $table  Table name
+     * @return  array   INDEX clauses
+     */
+    protected function processIndexes($table)
+    {
+        $sql = '';
 
-	// --------------------------------------------------------------------
+        for ($i = 0, $c = count($this->keys); $i < $c; $i++) {
+            if (is_array($this->keys[$i])) {
+                for ($i2 = 0, $c2 = count($this->keys[$i]); $i2 < $c2; $i2++) {
+                    if (!isset($this->fields[$this->keys[$i][$i2]])) {
+                        unset($this->keys[$i][$i2]);
+                        continue;
+                    }
+                }
+            }
+            elseif (!isset($this->fields[$this->keys[$i]])) {
+                unset($this->keys[$i]);
+                continue;
+            }
 
-	/**
-	 * Process column
-	 *
-	 * @param	array	$field
-	 * @return	string
-	 */
-	protected function _process_column($field)
-	{
-		$extra_clause = isset($field['after'])
-			? ' AFTER '.$this->db->escape_identifiers($field['after']) : '';
+            is_array($this->keys[$i]) || $this->keys[$i] = array($this->keys[$i]);
 
-		if (empty($extra_clause) && isset($field['first']) && $field['first'] === TRUE)
-		{
-			$extra_clause = ' FIRST';
-		}
+            $sql .= ",\n\tKEY ".$this->db->escapeIdentifiers(implode('_', $this->keys[$i])).
+                ' ('.implode(', ', $this->db->escapeIdentifiers($this->keys[$i])).')';
+        }
 
-		return $this->db->escape_identifiers($field['name'])
-			.(empty($field['new_name']) ? '' : ' '.$this->db->escape_identifiers($field['new_name']))
-			.' '.$field['type'].$field['length']
-			.$field['unsigned']
-			.$field['null']
-			.$field['default']
-			.$field['auto_increment']
-			.$field['unique']
-			.$extra_clause;
-	}
+        $this->keys = array();
 
-	// --------------------------------------------------------------------
-
-	/**
-	 * Process indexes
-	 *
-	 * @param	string	$table	(ignored)
-	 * @return	string
-	 */
-	protected function _process_indexes($table)
-	{
-		$sql = '';
-
-		for ($i = 0, $c = count($this->keys); $i < $c; $i++)
-		{
-			if (is_array($this->keys[$i]))
-			{
-				for ($i2 = 0, $c2 = count($this->keys[$i]); $i2 < $c2; $i2++)
-				{
-					if ( ! isset($this->fields[$this->keys[$i][$i2]]))
-					{
-						unset($this->keys[$i][$i2]);
-						continue;
-					}
-				}
-			}
-			elseif ( ! isset($this->fields[$this->keys[$i]]))
-			{
-				unset($this->keys[$i]);
-				continue;
-			}
-
-			is_array($this->keys[$i]) OR $this->keys[$i] = array($this->keys[$i]);
-
-			$sql .= ",\n\tKEY ".$this->db->escape_identifiers(implode('_', $this->keys[$i]))
-				.' ('.implode(', ', $this->db->escape_identifiers($this->keys[$i])).')';
-		}
-
-		$this->keys = array();
-
-		return $sql;
-	}
-
+        return $sql;
+    }
 }
 
-/* End of file mysqli_forge.php */
-/* Location: ./system/database/drivers/mysqli/mysqli_forge.php */

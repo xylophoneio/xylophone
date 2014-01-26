@@ -1,62 +1,56 @@
 <?php
 /**
- * CodeIgniter
+ * Xylophone
  *
- * An open source application development framework for PHP 5.2.4 or newer
+ * An open source HMVC application development framework for PHP 5.3 or newer
+ * Derived from CodeIgniter, Copyright (c) 2008 - 2013, EllisLab, Inc. (http://ellislab.com/)
  *
  * NOTICE OF LICENSE
  *
  * Licensed under the Open Software License version 3.0
  *
  * This source file is subject to the Open Software License (OSL 3.0) that is
- * bundled with this package in the files license.txt / license.rst.  It is
+ * bundled with this package in the files license.txt / license.rst. It is
  * also available through the world wide web at this URL:
  * http://opensource.org/licenses/OSL-3.0
  * If you did not receive a copy of the license and are unable to obtain it
- * through the world wide web, please send an email to
- * licensing@ellislab.com so we can send you a copy immediately.
+ * through the world wide web, please send an email to licensing@xylophone.io
+ * so we can send you a copy immediately.
  *
- * @package		CodeIgniter
- * @author		EllisLab Dev Team
- * @copyright	Copyright (c) 2008 - 2013, EllisLab, Inc. (http://ellislab.com/)
- * @license		http://opensource.org/licenses/OSL-3.0 Open Software License (OSL 3.0)
- * @link		http://codeigniter.com
- * @since		Version 2.1.0
+ * @package     Xylophone
+ * @author      Xylophone Dev Team, EllisLab Dev Team
+ * @copyright   Copyright (c) 2014, Xylophone Team (http://xylophone.io/)
+ * @license     http://opensource.org/licenses/OSL-3.0 Open Software License (OSL 3.0)
+ * @link        http://xylophone.io
+ * @since       Version 1.0
  * @filesource
  */
+namespace Xylophone\libraries\DbForge\Pdo\subdrivers;
+
 defined('BASEPATH') OR exit('No direct script access allowed');
 
 /**
- * PDO ODBC Forge Class
+ * PDO ODBC Database Forge Class
  *
- * @category	Database
- * @author		EllisLab Dev Team
- * @link		http://codeigniter.com/database/
+ * @package     Xylophone
+ * @subpackage  libraries/DbForge/Pdo/subdrivers
+ * @link        http://xylophone.io/user_guide/database/
  */
-class CI_DB_pdo_odbc_forge extends CI_DB_pdo_forge {
+class DbForgePdoOdbc extends \Xylophone\libraries\DbForge\Pdo\DbForgePdo
+{
+    /** @var    bool    UNSIGNED support */
+    protected $db_unsigned = false;
 
-	/**
-	 * UNSIGNED support
-	 *
-	 * @var	bool|array
-	 */
-	protected $_unsigned		= FALSE;
-
-	// --------------------------------------------------------------------
-
-	/**
-	 * Field attribute AUTO_INCREMENT
-	 *
-	 * @param	array	&$attributes
-	 * @param	array	&$field
-	 * @return	void
-	 */
-	protected function _attr_auto_increment(&$attributes, &$field)
-	{
-		// Not supported (in most databases at least)
-	}
-
+    /**
+     * Field attribute AUTO_INCREMENT
+     *
+     * @param   array   $attributes Field attributes
+     * @param   array   $field      Field definition
+     * @return  void
+     */
+    protected function attrAutoIncrement(&$attributes, &$field)
+    {
+        // Not supported (in most databases at least)
+    }
 }
 
-/* End of file pdo_odbc_forge.php */
-/* Location: ./system/database/drivers/pdo/subdrivers/pdo_odbc_forge.php */

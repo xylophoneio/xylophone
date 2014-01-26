@@ -1,195 +1,163 @@
 <?php
 /**
- * CodeIgniter
+ * Xylophone
  *
- * An open source application development framework for PHP 5.2.4 or newer
+ * An open source HMVC application development framework for PHP 5.3 or newer
+ * Derived from CodeIgniter, Copyright (c) 2008 - 2013, EllisLab, Inc. (http://ellislab.com/)
  *
  * NOTICE OF LICENSE
  *
  * Licensed under the Open Software License version 3.0
  *
  * This source file is subject to the Open Software License (OSL 3.0) that is
- * bundled with this package in the files license.txt / license.rst.  It is
+ * bundled with this package in the files license.txt / license.rst. It is
  * also available through the world wide web at this URL:
  * http://opensource.org/licenses/OSL-3.0
  * If you did not receive a copy of the license and are unable to obtain it
- * through the world wide web, please send an email to
- * licensing@ellislab.com so we can send you a copy immediately.
+ * through the world wide web, please send an email to licensing@xylophone.io
+ * so we can send you a copy immediately.
  *
- * @package		CodeIgniter
- * @author		EllisLab Dev Team
- * @copyright	Copyright (c) 2008 - 2013, EllisLab, Inc. (http://ellislab.com/)
- * @license		http://opensource.org/licenses/OSL-3.0 Open Software License (OSL 3.0)
- * @link		http://codeigniter.com
- * @since		Version 2.1.0
+ * @package     Xylophone
+ * @author      Xylophone Dev Team, EllisLab Dev Team
+ * @copyright   Copyright (c) 2014, Xylophone Team (http://xylophone.io/)
+ * @license     http://opensource.org/licenses/OSL-3.0 Open Software License (OSL 3.0)
+ * @link        http://xylophone.io
+ * @since       Version 1.0
  * @filesource
  */
+namespace Xylophone\libraries\DbForge\Pdo\subdrivers;
+
 defined('BASEPATH') OR exit('No direct script access allowed');
 
 /**
- * PDO PostgreSQL Forge Class
+ * PDO PostgresSQL Database Forge Class
  *
- * @category	Database
- * @author		EllisLab Dev Team
- * @link		http://codeigniter.com/user_guide/database/
+ * @package     Xylophone
+ * @subpackage  libraries/DbForge/Pdo/subdrivers
+ * @link        http://xylophone.io/user_guide/database/
  */
-class CI_DB_pdo_pgsql_forge extends CI_DB_pdo_forge {
+class DbForgePdoPgsql extends \Xylophone\libraries\DbForge\Pdo\DbForgePdo
+{
+    /** @var    string  DROP TABLE IF EXISTS statement */
+    protected $db_drop_table_if = 'DROP TABLE IF EXISTS';
 
-	/**
-	 * DROP TABLE IF statement
-	 *
-	 * @var	string
-	 */
-	protected $_drop_table_if	= 'DROP TABLE IF EXISTS';
+    /** @var    array   UNSIGNED support */
+    protected $db_unsigned = array(
+        'INT2' => 'INTEGER',
+        'SMALLINT' => 'INTEGER',
+        'INT' => 'BIGINT',
+        'INT4' => 'BIGINT',
+        'INTEGER' => 'BIGINT',
+        'INT8' => 'NUMERIC',
+        'BIGINT' => 'NUMERIC',
+        'REAL' => 'DOUBLE PRECISION',
+        'FLOAT' => 'DOUBLE PRECISION'
+    );
 
-	/**
-	 * UNSIGNED support
-	 *
-	 * @var	array
-	 */
-	protected $_unsigned		= array(
-		'INT2'		=> 'INTEGER',
-		'SMALLINT'	=> 'INTEGER',
-		'INT'		=> 'BIGINT',
-		'INT4'		=> 'BIGINT',
-		'INTEGER'	=> 'BIGINT',
-		'INT8'		=> 'NUMERIC',
-		'BIGINT'	=> 'NUMERIC',
-		'REAL'		=> 'DOUBLE PRECISION',
-		'FLOAT'		=> 'DOUBLE PRECISION'
-	);
+    /** @var    string  NULL value representation in CREATE/ALTER TABLE statements */
+    protected $db_null = 'NULL';
 
-	/**
-	 * NULL value representation in CREATE/ALTER TABLE statements
-	 *
-	 * @var	string
-	 */
-	protected $_null		= 'NULL';
+    /**
+     * Constructor
+     *
+     * @param   array   $config     Config params
+     * @param   array   $extras     Extra config params
+     * @return  void
+     */
+    public function __construct($config, $extras)
+    {
+        parent::__construct($config, $extras);
 
-	// --------------------------------------------------------------------
+        if (version_compare($this->db->version(), '9.0', '>')) {
+            $this->db_create_table_if = 'CREATE TABLE IF NOT EXISTS';
+        }
+    }
 
-	/**
-	 * Class constructor
-	 *
-	 * @param	object	&$db	Database object
-	 * @return	void
-	 */
-	public function __construct(&$db)
-	{
-		parent::__construct($db);
+    /**
+     * ALTER TABLE Query
+     *
+     * @param   string  $alter_type ALTER type
+     * @param   string  $table      Table name
+     * @param   mixed   $field      Column definition
+     * @return  mixed   ALTER string or array of strings
+     */
+    protected function alterTableQuery($alter_type, $table, $field)
+    {
+        if (in_array($alter_type, array('DROP', 'ADD'), TRUE)) {
+            return parent::alterTableQuery($alter_type, $table, $field);
+        }
 
-		if (version_compare($this->db->version(), '9.0', '>'))
-		{
-			$this->create_table_if = 'CREATE TABLE IF NOT EXISTS';
-		}
-	}
+        $sql = 'ALTER TABLE '.$this->db->escapeIdentifiers($table);
+        $sqls = array();
+        for ($i = 0, $c = count($field); $i < $c; $i++) {
+            if ($field[$i]['_literal'] !== false) {
+                return false;
+            }
 
-	// --------------------------------------------------------------------
+            if (version_compare($this->db->version(), '8', '>=') && isset($field[$i]['type'])) {
+                $sqls[] = $sql.' ALTER COLUMN '.$this->db->escapeIdentifiers($field[$i]['name']).
+                    ' TYPE '.$field[$i]['type'].$field[$i]['length'];
+            }
 
-	/**
-	 * ALTER TABLE
-	 *
-	 * @param	string	$alter_type	ALTER type
-	 * @param	string	$table		Table name
-	 * @param	mixed	$field		Column definition
-	 * @return	string|string[]
-	 */
-	protected function _alter_table($alter_type, $table, $field)
- 	{
-		if (in_array($alter_type, array('DROP', 'ADD'), TRUE))
-		{
-			return parent::_alter_table($alter_type, $table, $field);
-		}
+            if (!empty($field[$i]['default'])) {
+                $sqls[] = $sql.' ALTER COLUMN '.$this->db->escapeIdentifiers($field[$i]['name']).
+                    ' SET DEFAULT '.$field[$i]['default'];
+            }
 
-		$sql = 'ALTER TABLE '.$this->db->escape_identifiers($table);
-		$sqls = array();
-		for ($i = 0, $c = count($field); $i < $c; $i++)
-		{
-			if ($field[$i]['_literal'] !== FALSE)
-			{
-				return FALSE;
-			}
+            if (isset($field[$i]['null'])) {
+                $sqls[] = $sql.' ALTER COLUMN '.$this->db->escapeIdentifiers($field[$i]['name']).
+                    ($field[$i]['null'] === true ? ' DROP NOT NULL' : ' SET NOT NULL');
+            }
 
-			if (version_compare($this->db->version(), '8', '>=') && isset($field[$i]['type']))
-			{
-				$sqls[] = $sql.' ALTER COLUMN '.$this->db->escape_identifiers($field[$i]['name'])
-					.' TYPE '.$field[$i]['type'].$field[$i]['length'];
-			}
+            if (!empty($field[$i]['new_name'])) {
+                $sqls[] = $sql.' RENAME COLUMN '.$this->db->escapeIdentifiers($field[$i]['name']).
+                    ' TO '.$this->db->escapeIdentifiers($field[$i]['new_name']);
+            }
+        }
 
-			if ( ! empty($field[$i]['default']))
-			{
-				$sqls[] = $sql.' ALTER COLUMN '.$this->db->escape_identifiers($field[$i]['name'])
-					.' SET DEFAULT '.$field[$i]['default'];
-			}
+        return $sqls;
+    }
 
-			if (isset($field[$i]['null']))
-			{
-				$sqls[] = $sql.' ALTER COLUMN '.$this->db->escape_identifiers($field[$i]['name'])
-					.($field[$i]['null'] === TRUE ? ' DROP NOT NULL' : ' SET NOT NULL');
-			}
+    /**
+     * Field attribute TYPE
+     *
+     * Performs a data type mapping between different databases.
+     *
+     * @param   array   $attributes     Field attributes
+     * @return  void
+     */
+    protected function attrType(&$attributes)
+    {
+        // Reset field lenghts for data types that don't support it
+        if (isset($attributes['CONSTRAINT']) && stripos($attributes['TYPE'], 'int') !== false) {
+            $attributes['CONSTRAINT'] = null;
+        }
 
-			if ( ! empty($field[$i]['new_name']))
-			{
-				$sqls[] = $sql.' RENAME COLUMN '.$this->db->escape_identifiers($field[$i]['name'])
-					.' TO '.$this->db->escape_identifiers($field[$i]['new_name']);
-			}
-		}
+        switch (strtoupper($attributes['TYPE'])) {
+            case 'TINYINT':
+                $attributes['TYPE'] = 'SMALLINT';
+                $attributes['UNSIGNED'] = FALSE;
+                return;
+            case 'MEDIUMINT':
+                $attributes['TYPE'] = 'INTEGER';
+                $attributes['UNSIGNED'] = FALSE;
+                return;
+            default: return;
+        }
+    }
 
-		return $sqls;
- 	}
-
-	// --------------------------------------------------------------------
-
-	/**
-	 * Field attribute TYPE
-	 *
-	 * Performs a data type mapping between different databases.
-	 *
-	 * @param	array	&$attributes
-	 * @return	void
-	 */
-	protected function _attr_type(&$attributes)
-	{
-		// Reset field lenghts for data types that don't support it
-		if (isset($attributes['CONSTRAINT']) && stripos($attributes['TYPE'], 'int') !== FALSE)
-		{
-			$attributes['CONSTRAINT'] = NULL;
-		}
-
-		switch (strtoupper($attributes['TYPE']))
-		{
-			case 'TINYINT':
-				$attributes['TYPE'] = 'SMALLINT';
-				$attributes['UNSIGNED'] = FALSE;
-				return;
-			case 'MEDIUMINT':
-				$attributes['TYPE'] = 'INTEGER';
-				$attributes['UNSIGNED'] = FALSE;
-				return;
-			default: return;
-		}
-	}
-
-	// --------------------------------------------------------------------
-
-	/**
-	 * Field attribute AUTO_INCREMENT
-	 *
-	 * @param	array	&$attributes
-	 * @param	array	&$field
-	 * @return	void
-	 */
-	protected function _attr_auto_increment(&$attributes, &$field)
-	{
-		if ( ! empty($attributes['AUTO_INCREMENT']) && $attributes['AUTO_INCREMENT'] === TRUE)
-		{
-			$field['type'] = ($field['type'] === 'NUMERIC')
-						? 'BIGSERIAL'
-						: 'SERIAL';
-		}
-	}
-
+    /**
+     * Field attribute AUTO_INCREMENT
+     *
+     * @param   array   $attributes Field attributes
+     * @param   array   $field      Field definition
+     * @return  void
+     */
+    protected function attrAutoIncrement(&$attributes, &$field)
+    {
+        if (!empty($attributes['AUTO_INCREMENT']) && $attributes['AUTO_INCREMENT'] === true) {
+            $field['type'] = ($field['type'] === 'NUMERIC') ? 'BIGSERIAL' : 'SERIAL';
+        }
+    }
 }
 
-/* End of file pdo_pgsql_forge.php */
-/* Location: ./system/database/drivers/pdo/subdrivers/pdo_pgsql_forge.php */
