@@ -1,53 +1,53 @@
 <?php
 /**
- * CodeIgniter
+ * Xylophone
  *
- * An open source application development framework for PHP 5.2.4 or newer
+ * An open source HMVC application development framework for PHP 5.3 or newer
+ * Derived from CodeIgniter, Copyright (c) 2008 - 2013, EllisLab, Inc. (http://ellislab.com/)
  *
  * NOTICE OF LICENSE
  *
  * Licensed under the Open Software License version 3.0
  *
  * This source file is subject to the Open Software License (OSL 3.0) that is
- * bundled with this package in the files license.txt / license.rst.  It is
+ * bundled with this package in the files license.txt / license.rst. It is
  * also available through the world wide web at this URL:
  * http://opensource.org/licenses/OSL-3.0
  * If you did not receive a copy of the license and are unable to obtain it
- * through the world wide web, please send an email to
- * licensing@ellislab.com so we can send you a copy immediately.
+ * through the world wide web, please send an email to licensing@xylophone.io
+ * so we can send you a copy immediately.
  *
- * @package		CodeIgniter
- * @author		EllisLab Dev Team
- * @copyright	Copyright (c) 2008 - 2013, EllisLab, Inc. (http://ellislab.com/)
- * @license		http://opensource.org/licenses/OSL-3.0 Open Software License (OSL 3.0)
- * @link		http://codeigniter.com
- * @since		Version 2.1.0
+ * @package     Xylophone
+ * @author      Xylophone Dev Team, EllisLab Dev Team
+ * @copyright   Copyright (c) 2014, Xylophone Team (http://xylophone.io/)
+ * @license     http://opensource.org/licenses/OSL-3.0 Open Software License (OSL 3.0)
+ * @link        http://xylophone.io
+ * @since       Version 1.0
  * @filesource
  */
+namespace Xylophone\libraries\DbUtil\Pdo;
+
 defined('BASEPATH') OR exit('No direct script access allowed');
 
 /**
- * PDO Utility Class
+ * PDO Database Utility Class
  *
- * @category	Database
- * @author		EllisLab Dev Team
- * @link		http://codeigniter.com/database/
+ * @package     Xylophone
+ * @subpackage  libraries/Database/Pdo
+ * @link        http://xylophone.io/user_guide/database/
  */
-class CI_DB_pdo_utility extends CI_DB_utility {
-
-	/**
-	 * Export
-	 *
-	 * @param	array	$params	Preferences
-	 * @return	mixed
-	 */
-	protected function _backup($params = array())
+class DbUtilPdo extends \Xylophone\libraries\DbUtil
+{
+    /**
+     * Export
+     *
+     * @param   array   $params Parameters
+     * @return  mixed   Backup file data on success, otherwise FALSE
+     */
+    protected function dbBackup($params)
 	{
 		// Currently unsupported
-		return $this->db->display_error('db_unsupported_feature');
+		return $this->db->displayError('db_unsupported_feature');
 	}
-
 }
 
-/* End of file pdo_utility.php */
-/* Location: ./system/database/drivers/pdo/pdo_utility.php */

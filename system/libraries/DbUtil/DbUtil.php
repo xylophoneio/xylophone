@@ -1,416 +1,365 @@
 <?php
 /**
- * CodeIgniter
+ * Xylophone
  *
- * An open source application development framework for PHP 5.2.4 or newer
+ * An open source HMVC application development framework for PHP 5.3 or newer
+ * Derived from CodeIgniter, Copyright (c) 2008 - 2013, EllisLab, Inc. (http://ellislab.com/)
  *
  * NOTICE OF LICENSE
  *
  * Licensed under the Open Software License version 3.0
  *
  * This source file is subject to the Open Software License (OSL 3.0) that is
- * bundled with this package in the files license.txt / license.rst.  It is
+ * bundled with this package in the files license.txt / license.rst. It is
  * also available through the world wide web at this URL:
  * http://opensource.org/licenses/OSL-3.0
  * If you did not receive a copy of the license and are unable to obtain it
- * through the world wide web, please send an email to
- * licensing@ellislab.com so we can send you a copy immediately.
+ * through the world wide web, please send an email to licensing@xylophone.io
+ * so we can send you a copy immediately.
  *
- * @package		CodeIgniter
- * @author		EllisLab Dev Team
- * @copyright	Copyright (c) 2008 - 2013, EllisLab, Inc. (http://ellislab.com/)
- * @license		http://opensource.org/licenses/OSL-3.0 Open Software License (OSL 3.0)
- * @link		http://codeigniter.com
- * @since		Version 1.0
+ * @package     Xylophone
+ * @author      Xylophone Dev Team, EllisLab Dev Team
+ * @copyright   Copyright (c) 2014, Xylophone Team (http://xylophone.io/)
+ * @license     http://opensource.org/licenses/OSL-3.0 Open Software License (OSL 3.0)
+ * @link        http://xylophone.io
+ * @since       Version 1.0
  * @filesource
  */
+namespace Xylophone\libraries\DbUtil;
+
 defined('BASEPATH') OR exit('No direct script access allowed');
 
 /**
  * Database Utility Class
  *
- * @category	Database
- * @author		EllisLab Dev Team
- * @link		http://codeigniter.com/user_guide/database/
+ * @package     Xylophone
+ * @subpackage  libraries/Database
+ * @link        http://xylophone.io/user_guide/database/
  */
-abstract class CI_DB_utility {
+abstract class DbUtil
+{
+    /** @var    object  Database object */
+    protected $db;
 
-	/**
-	 * Database object
-	 *
-	 * @var	object
-	 */
-	protected $db;
+    /** @var    string  List databases statement */
+    protected $db_list_databases = false;
 
-	// --------------------------------------------------------------------
+    /** @var    string  OPTIMIZE TABLE statement */
+    protected $db_optimize_table = false;
 
-	/**
-	 * List databases statement
-	 *
-	 * @var	string
-	 */
-	protected $_list_databases		= FALSE;
+    /** @var    string  REPAIR TABLE statement */
+    protected $db_repair_table = false;
 
-	/**
-	 * OPTIMIZE TABLE statement
-	 *
-	 * @var	string
-	 */
-	protected $_optimize_table	= FALSE;
+    /**
+     * Constructor
+     *
+     * @param   array   $config     Config params
+     * @param   array   $extras     Extra config params
+     * @return  void
+     */
+    public function __construct($config, $extras)
+    {
+        global $XY;
 
-	/**
-	 * REPAIR TABLE statement
-	 *
-	 * @var	string
-	 */
-	protected $_repair_table	= FALSE;
+        if (isset($config['db'])) {
+            // Use passed database object
+            $this->db = $config['db'];
+        }
+        else {
+            // Load db as necessary and use that
+            isset($XY->db) || $XY->load->driver('database');
+            $this->db = $XY->db;
+        }
 
-	// --------------------------------------------------------------------
+        $XY->logger->debug('Database Utility Class Initialized');
+    }
 
-	/**
-	 * Class constructor
-	 *
-	 * @param	object	&$db	Database object
-	 * @return	void
-	 */
-	public function __construct(&$db)
-	{
-		$this->db =& $db;
-		log_message('debug', 'Database Utility Class Initialized');
-	}
+    /**
+     * List databases
+     *
+     * @return  array   Database list
+     */
+    public function listDatabases()
+    {
+        // Is there a cached result?
+        if (isset($this->db->data_cache['db_names'])) {
+            return $this->db->data_cache['db_names'];
+        }
+        elseif ($this->db_list_databases === false) {
+            return $this->db->displayError('db_unsupported_feature');
+        }
 
-	// --------------------------------------------------------------------
+        $this->db->data_cache['db_names'] = array();
 
-	/**
-	 * List databases
-	 *
-	 * @return	array
-	 */
-	public function list_databases()
-	{
-		// Is there a cached result?
-		if (isset($this->db->data_cache['db_names']))
-		{
-			return $this->db->data_cache['db_names'];
-		}
-		elseif ($this->_list_databases === FALSE)
-		{
-			return ($this->db->db_debug) ? $this->db->display_error('db_unsupported_feature') : FALSE;
-		}
+        $query = $this->db->query($this->db_list_databases);
+        if ($query === false) {
+            return $this->db->data_cache['db_names'];
+        }
 
-		$this->db->data_cache['db_names'] = array();
+        for ($i = 0, $query = $query->resultArray(), $c = count($query); $i < $c; $i++) {
+            $this->db->data_cache['db_names'][] = current($query[$i]);
+        }
 
-		$query = $this->db->query($this->_list_databases);
-		if ($query === FALSE)
-		{
-			return $this->db->data_cache['db_names'];
-		}
+        return $this->db->data_cache['db_names'];
+    }
 
-		for ($i = 0, $query = $query->result_array(), $c = count($query); $i < $c; $i++)
-		{
-			$this->db->data_cache['db_names'][] = current($query[$i]);
-		}
+    /**
+     * Determine if a particular database exists
+     *
+     * @param   string  $database   Database name
+     * @return  bool    TRUE if exists, otherwise FALSE
+     */
+    public function databaseExists($database)
+    {
+        return in_array($database, $this->listDatabases());
+    }
 
-		return $this->db->data_cache['db_names'];
-	}
+    /**
+     * Optimize Table
+     *
+     * @param   string  $table  Table name
+     * @return  mixed   Result array on success, otherwise FALSE
+     */
+    public function optimizeTable($table)
+    {
+        if ($this->db_optimize_table === false) {
+            return $this->db->displayError('db_unsupported_feature');
+        }
 
-	// --------------------------------------------------------------------
+        $query = $this->db->query(sprintf($this->db_optimize_table, $this->db->escapeIdentifiers($table)));
+        if ($query !== false) {
+            $query = $query->resultArray();
+            return current($query);
+        }
 
-	/**
-	 * Determine if a particular database exists
-	 *
-	 * @param	string	$database_name
-	 * @return	bool
-	 */
-	public function database_exists($database_name)
-	{
-		return in_array($database_name, $this->list_databases());
-	}
+        return false;
+    }
 
-	// --------------------------------------------------------------------
+    /**
+     * Optimize Database
+     *
+     * @return  mixed   Result array or TRUE on success, otherwise FALSE
+     */
+    public function optimizeDatabase()
+    {
+        if ($this->db_optimize_table === false) {
+            return $this->db->displayError('db_unsupported_feature');
+        }
 
-	/**
-	 * Optimize Table
-	 *
-	 * @param	string	$table_name
-	 * @return	mixed
-	 */
-	public function optimize_table($table_name)
-	{
-		if ($this->_optimize_table === FALSE)
-		{
-			return ($this->db->db_debug) ? $this->db->display_error('db_unsupported_feature') : FALSE;
-		}
+        $result = array();
+        foreach ($this->db->listTables() as $table) {
+            $res = $this->db->query(sprintf($this->db_optimize_table, $this->db->escapeIdentifiers($table)));
+            if (is_bool($res)) {
+                return $res;
+            }
 
-		$query = $this->db->query(sprintf($this->_optimize_table, $this->db->escape_identifiers($table_name)));
-		if ($query !== FALSE)
-		{
-			$query = $query->result_array();
-			return current($query);
-		}
+            // Build the result array...
+            $res = $res->resultArray();
+            $res = current($res);
+            $key = str_replace($this->db->database.'.', '', current($res));
+            $keys = array_keys($res);
+            unset($res[$keys[0]]);
 
-		return FALSE;
-	}
+            $result[$key] = $res;
+        }
 
-	// --------------------------------------------------------------------
+        return $result;
+    }
 
-	/**
-	 * Optimize Database
-	 *
-	 * @return	mixed
-	 */
-	public function optimize_database()
-	{
-		if ($this->_optimize_table === FALSE)
-		{
-			return ($this->db->db_debug) ? $this->db->display_error('db_unsupported_feature') : FALSE;
-		}
+    /**
+     * Repair Table
+     *
+     * @param   string  $table  Table name
+     * @return  mixed   Result array or TRUE on success, otherwise FALSE
+     */
+    public function repairTable($table)
+    {
+        if ($this->db_repair_table === false) {
+            return $this->db->displayError('db_unsupported_feature');
+        }
 
-		$result = array();
-		foreach ($this->db->list_tables() as $table_name)
-		{
-			$res = $this->db->query(sprintf($this->_optimize_table, $this->db->escape_identifiers($table_name)));
-			if (is_bool($res))
-			{
-				return $res;
-			}
+        $query = $this->db->query(sprintf($this->db_repair_table, $this->db->escapeIdentifiers($table)));
+        if (is_bool($query)) {
+            return $query;
+        }
 
-			// Build the result array...
-			$res = $res->result_array();
-			$res = current($res);
-			$key = str_replace($this->db->database.'.', '', current($res));
-			$keys = array_keys($res);
-			unset($res[$keys[0]]);
+        $query = $query->resultArray();
+        return current($query);
+    }
 
-			$result[$key] = $res;
-		}
+    /**
+     * Generate CSV from a query result object
+     *
+     * @param   object  $query      Query result object
+     * @param   string  $delim      Delimiter
+     * @param   string  $newline    Newline character
+     * @param   string  $enclosure  Enclosure
+     * @return  string  Result CSV
+     */
+    public function csvFromResult($query, $delim = ',', $newline = "\n", $enclosure = '"')
+    {
+        global $XY;
 
-		return $result;
-	}
+        if (!is_object($query) || !method_exists($query, 'listFields')) {
+            $XY->showError('You must submit a valid result object');
+        }
 
-	// --------------------------------------------------------------------
+        // First generate the headings from the table column names
+        $out = '';
+        foreach ($query->listFields() as $name) {
+            $out .= $enclosure.str_replace($enclosure, $enclosure.$enclosure, $name).$enclosure.$delim;
+        }
 
-	/**
-	 * Repair Table
-	 *
-	 * @param	string	$table_name
-	 * @return	mixed
-	 */
-	public function repair_table($table_name)
-	{
-		if ($this->_repair_table === FALSE)
-		{
-			return ($this->db->db_debug) ? $this->db->display_error('db_unsupported_feature') : FALSE;
-		}
+        $out = substr(rtrim($out), 0, -strlen($delim)).$newline;
 
-		$query = $this->db->query(sprintf($this->_repair_table, $this->db->escape_identifiers($table_name)));
-		if (is_bool($query))
-		{
-			return $query;
-		}
+        // Next blast through the result array and build out the rows
+        while ($row = $query->unbufferedRow('array')) {
+            foreach ($row as $item) {
+                $out .= $enclosure.str_replace($enclosure, $enclosure.$enclosure, $item).$enclosure.$delim;
+            }
+            $out = substr(rtrim($out), 0, -strlen($delim)).$newline;
+        }
 
-		$query = $query->result_array();
-		return current($query);
-	}
+        return $out;
+    }
 
-	// --------------------------------------------------------------------
+    /**
+     * Generate XML data from a query result object
+     *
+     * @param   object  $query  Query result object
+     * @param   array   $params Any preferences
+     * @return  string  Result XML
+     */
+    public function xmlFromResult($query, $params = array())
+    {
+        global $XY;
 
-	/**
-	 * Generate CSV from a query result object
-	 *
-	 * @param	object	$query		Query result object
-	 * @param	string	$delim		Delimiter (default: ,)
-	 * @param	string	$newline	Newline character (default: \n)
-	 * @param	string	$enclosure	Enclosure (default: ")
-	 * @return	string
-	 */
-	public function csv_from_result($query, $delim = ',', $newline = "\n", $enclosure = '"')
-	{
-		if ( ! is_object($query) OR ! method_exists($query, 'list_fields'))
-		{
-			show_error('You must submit a valid result object');
-		}
+        if (!is_object($query) || !method_exists($query, 'list_fields')) {
+            $XY->showError('You must submit a valid result object');
+        }
 
-		$out = '';
-		// First generate the headings from the table column names
-		foreach ($query->list_fields() as $name)
-		{
-			$out .= $enclosure.str_replace($enclosure, $enclosure.$enclosure, $name).$enclosure.$delim;
-		}
+        // Set our default values
+        foreach (array('root' => 'root', 'element' => 'element', 'newline' => "\n", 'tab' => "\t") as $key => $val) {
+            isset($params[$key]) || $params[$key] = $val;
+        }
 
-		$out = substr(rtrim($out), 0, -strlen($delim)).$newline;
+        // Create variables for convenience
+        extract($params);
 
-		// Next blast through the result array and build out the rows
-		while ($row = $query->unbuffered_row('array'))
-		{
-			foreach ($row as $item)
-			{
-				$out .= $enclosure.str_replace($enclosure, $enclosure.$enclosure, $item).$enclosure.$delim;
-			}
-			$out = substr(rtrim($out), 0, -strlen($delim)).$newline;
-		}
+        // Load XML library
+        $XY->load->library('xml');
 
-		return $out;
-	}
+        // Generate the result
+        $xml = '<'.$root.'>'.$newline;
+        while ($row = $query->unbufferedRow()) {
+            $xml .= $tab.'<'.$element.'>'.$newline;
+            foreach ($row as $key => $val) {
+                $xml .= $tab.$tab.'<'.$key.'>'.$XY->xml->convert($val).'</'.$key.'>'.$newline;
+            }
+            $xml .= $tab.'</'.$element.'>'.$newline;
+        }
 
-	// --------------------------------------------------------------------
+        return $xml.'</'.$root.'>'.$newline;
+    }
 
-	/**
-	 * Generate XML data from a query result object
-	 *
-	 * @param	object	$query	Query result object
-	 * @param	array	$params	Any preferences
-	 * @return	string
-	 */
-	public function xml_from_result($query, $params = array())
-	{
-		if ( ! is_object($query) OR ! method_exists($query, 'list_fields'))
-		{
-			show_error('You must submit a valid result object');
-		}
+    /**
+     * Database Backup
+     *
+     * @param   array   $params Parameters
+     * @return  mixed   Backup file data on success, otherwise FALSE
+     */
+    public function backup($params = array())
+    {
+        // If the parameters have not been submitted as an
+        // array then we know that it is simply the table
+        // name, which is a valid short cut.
+        if (is_string($params)) {
+            $params = array('tables' => $params);
+        }
 
-		// Set our default values
-		foreach (array('root' => 'root', 'element' => 'element', 'newline' => "\n", 'tab' => "\t") as $key => $val)
-		{
-			if ( ! isset($params[$key]))
-			{
-				$params[$key] = $val;
-			}
-		}
+        // Set up our default preferences
+        $prefs = array(
+            'tables' => array(),
+            'ignore' => array(),
+            'filename' => '',
+            'format' => 'gzip', // gzip, zip, txt
+            'add_drop' => true,
+            'add_insert' => true,
+            'newline' => "\n",
+            'foreign_key_checks' => true
+        );
 
-		// Create variables for convenience
-		extract($params);
+        // Did the user submit any preferences? If so set them....
+        if (count($params) > 0) {
+            foreach ($prefs as $key => $val) {
+                isset($params[$key]) && $prefs[$key] = $params[$key];
+            }
+        }
 
-		// Load the xml helper
-		$CI =& get_instance();
-		$CI->load->helper('xml');
+        // Are we backing up a complete database or individual tables?
+        // If no table names were submitted we'll fetch the entire table list
+        if (count($prefs['tables']) === 0) {
+            $prefs['tables'] = $this->db->listTables();
+        }
 
-		// Generate the result
-		$xml = '<'.$root.'>'.$newline;
-		while ($row = $query->unbuffered_row())
-		{
-			$xml .= $tab.'<'.$element.'>'.$newline;
-			foreach ($row as $key => $val)
-			{
-				$xml .= $tab.$tab.'<'.$key.'>'.xml_convert($val).'</'.$key.'>'.$newline;
-			}
-			$xml .= $tab.'</'.$element.'>'.$newline;
-		}
+        // Validate the format
+        if (!in_array($prefs['format'], array('gzip', 'zip', 'txt'), true)) {
+            $prefs['format'] = 'txt';
+        }
 
-		return $xml.'</'.$root.'>'.$newline;
-	}
+        // Is the encoder supported? If not, we'll either issue an
+        // error or use plain text depending on the debug settings
+        if (($prefs['format'] === 'gzip' && ! @function_exists('gzencode'))
+        || ($prefs['format'] === 'zip' && ! @function_exists('gzcompress'))) {
+            if ($this->db->db_debug) {
+                return $this->db->displayError('db_unsupported_compression');
+            }
 
-	// --------------------------------------------------------------------
+            $prefs['format'] = 'txt';
+        }
 
-	/**
-	 * Database Backup
-	 *
-	 * @param	array	$params
-	 * @return	void
-	 */
-	public function backup($params = array())
-	{
-		// If the parameters have not been submitted as an
-		// array then we know that it is simply the table
-		// name, which is a valid short cut.
-		if (is_string($params))
-		{
-			$params = array('tables' => $params);
-		}
+        // What format was requested?
+        if ($prefs['format'] === 'zip') {
+            // Set the filename if not provided (only needed with Zip files)
+            if ($prefs['filename'] === '') {
+                $prefs['filename'] = (count($prefs['tables']) === 1 ? $prefs['tables'] : $this->db->database)
+                    .date('Y-m-d_H-i', time()).'.sql';
+            }
+            else {
+                // If they included the .zip file extension we'll remove it
+                if (preg_match('|.+?\.zip$|', $prefs['filename'])) {
+                    $prefs['filename'] = str_replace('.zip', '', $prefs['filename']);
+                }
 
-		// Set up our default preferences
-		$prefs = array(
-			'tables'		=> array(),
-			'ignore'		=> array(),
-			'filename'		=> '',
-			'format'		=> 'gzip', // gzip, zip, txt
-			'add_drop'		=> TRUE,
-			'add_insert'		=> TRUE,
-			'newline'		=> "\n",
-			'foreign_key_checks'	=> TRUE
-		);
+                // Tack on the ".sql" file extension if needed
+                if (!preg_match('|.+?\.sql$|', $prefs['filename'])) {
+                    $prefs['filename'] .= '.sql';
+                }
+            }
 
-		// Did the user submit any preferences? If so set them....
-		if (count($params) > 0)
-		{
-			foreach ($prefs as $key => $val)
-			{
-				if (isset($params[$key]))
-				{
-					$prefs[$key] = $params[$key];
-				}
-			}
-		}
+            // Load the Zip class and output it
+            $XY->load->library('zip');
+            $XY->zip->add_data($prefs['filename'], $this->dbBackup($prefs));
+            return $XY->zip->getZip();
+        }
+        elseif ($prefs['format'] === 'txt') {
+            // Text file requested
+            return $this->dbBackup($prefs);
+        }
+        elseif ($prefs['format'] === 'gzip') {
+            // Gzip requested
+            return gzencode($this->dbBackup($prefs));
+        }
 
-		// Are we backing up a complete database or individual tables?
-		// If no table names were submitted we'll fetch the entire table list
-		if (count($prefs['tables']) === 0)
-		{
-			$prefs['tables'] = $this->db->list_tables();
-		}
+        return false;
+    }
 
-		// Validate the format
-		if ( ! in_array($prefs['format'], array('gzip', 'zip', 'txt'), TRUE))
-		{
-			$prefs['format'] = 'txt';
-		}
-
-		// Is the encoder supported? If not, we'll either issue an
-		// error or use plain text depending on the debug settings
-		if (($prefs['format'] === 'gzip' && ! @function_exists('gzencode'))
-			OR ($prefs['format'] === 'zip' && ! @function_exists('gzcompress')))
-		{
-			if ($this->db->db_debug)
-			{
-				return $this->db->display_error('db_unsupported_compression');
-			}
-
-			$prefs['format'] = 'txt';
-		}
-
-		// Was a Zip file requested?
-		if ($prefs['format'] === 'zip')
-		{
-			// Set the filename if not provided (only needed with Zip files)
-			if ($prefs['filename'] === '')
-			{
-				$prefs['filename'] = (count($prefs['tables']) === 1 ? $prefs['tables'] : $this->db->database)
-							.date('Y-m-d_H-i', time()).'.sql';
-			}
-			else
-			{
-				// If they included the .zip file extension we'll remove it
-				if (preg_match('|.+?\.zip$|', $prefs['filename']))
-				{
-					$prefs['filename'] = str_replace('.zip', '', $prefs['filename']);
-				}
-
-				// Tack on the ".sql" file extension if needed
-				if ( ! preg_match('|.+?\.sql$|', $prefs['filename']))
-				{
-					$prefs['filename'] .= '.sql';
-				}
-			}
-
-			// Load the Zip class and output it
-			$CI =& get_instance();
-			$CI->load->library('zip');
-			$CI->zip->add_data($prefs['filename'], $this->_backup($prefs));
-			return $CI->zip->get_zip();
-		}
-		elseif ($prefs['format'] === 'txt') // Was a text file requested?
-		{
-			return $this->_backup($prefs);
-		}
-		elseif ($prefs['format'] === 'gzip') // Was a Gzip file requested?
-		{
-			return gzencode($this->_backup($prefs));
-		}
-
-		return;
-	}
-
+    /**
+     * Platform-specific database backup
+     *
+     * @param   array   $params Parameters
+     * @return  mixed   Backup file data on success, otherwise FALSE
+     */
+    abstract protected function dbBackup($params);
 }
 
-/* End of file DB_utility.php */
-/* Location: ./system/database/DB_utility.php */

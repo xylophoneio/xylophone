@@ -1,68 +1,59 @@
 <?php
 /**
- * CodeIgniter
+ * Xylophone
  *
- * An open source application development framework for PHP 5.2.4 or newer
+ * An open source HMVC application development framework for PHP 5.3 or newer
+ * Derived from CodeIgniter, Copyright (c) 2008 - 2013, EllisLab, Inc. (http://ellislab.com/)
  *
  * NOTICE OF LICENSE
  *
  * Licensed under the Open Software License version 3.0
  *
  * This source file is subject to the Open Software License (OSL 3.0) that is
- * bundled with this package in the files license.txt / license.rst.  It is
+ * bundled with this package in the files license.txt / license.rst. It is
  * also available through the world wide web at this URL:
  * http://opensource.org/licenses/OSL-3.0
  * If you did not receive a copy of the license and are unable to obtain it
- * through the world wide web, please send an email to
- * licensing@ellislab.com so we can send you a copy immediately.
+ * through the world wide web, please send an email to licensing@xylophone.io
+ * so we can send you a copy immediately.
  *
- * @package		CodeIgniter
- * @author		EllisLab Dev Team
- * @copyright	Copyright (c) 2008 - 2013, EllisLab, Inc. (http://ellislab.com/)
- * @license		http://opensource.org/licenses/OSL-3.0 Open Software License (OSL 3.0)
- * @link		http://codeigniter.com
- * @since		Version 1.0
+ * @package     Xylophone
+ * @author      Xylophone Dev Team, EllisLab Dev Team
+ * @copyright   Copyright (c) 2014, Xylophone Team (http://xylophone.io/)
+ * @license     http://opensource.org/licenses/OSL-3.0 Open Software License (OSL 3.0)
+ * @link        http://xylophone.io
+ * @since       Version 1.0
  * @filesource
  */
+namespace Xylophone\libraries\DbUtil\Postgre;
+
 defined('BASEPATH') OR exit('No direct script access allowed');
 
 /**
- * Postgre Utility Class
+ * PostgresSQL Database Utility Class
  *
- * @category	Database
- * @author		EllisLab Dev Team
- * @link		http://codeigniter.com/user_guide/database/
+ * @package     Xylophone
+ * @subpackage  libraries/Database/Postgre
+ * @link        http://xylophone.io/user_guide/database/
  */
-class CI_DB_postgre_utility extends CI_DB_utility {
+class DbUtilPostgre extends \Xylophone\libraries\DbUtil
+{
+    /** @var    string  List databases statement */
+    protected $db_list_databases = 'SELECT datname FROM pg_database';
 
-	/**
-	 * List databases statement
-	 *
-	 * @var	string
-	 */
-	protected $_list_databases	= 'SELECT datname FROM pg_database';
+    /** @var    string  OPTIMIZE TABLE statement */
+    protected $db_optimize_table = 'REINDEX TABLE %s';
 
-	/**
-	 * OPTIMIZE TABLE statement
-	 *
-	 * @var	string
-	 */
-	protected $_optimize_table	= 'REINDEX TABLE %s';
-
-	// --------------------------------------------------------------------
-
-	/**
-	 * Export
-	 *
-	 * @param	array	$params	Preferences
-	 * @return	mixed
-	 */
-	protected function _backup($params = array())
-	{
-		// Currently unsupported
-		return $this->db->display_error('db_unsupported_feature');
-	}
+    /**
+     * Export
+     *
+     * @param   array   $params Parameters
+     * @return  mixed   Backup file data on success, otherwise FALSE
+     */
+    protected function dbBackup($params)
+    {
+        // Currently unsupported
+        return $this->db->displayError('db_unsupported_feature');
+    }
 }
 
-/* End of file postgre_utility.php */
-/* Location: ./system/database/drivers/postgre/postgre_utility.php */
