@@ -1,253 +1,194 @@
 <?php
 /**
- * CodeIgniter
+ * Xylophone
  *
- * An open source application development framework for PHP 5.2.4 or newer
+ * An open source HMVC application development framework for PHP 5.3 or newer
+ * Derived from CodeIgniter, Copyright (c) 2008 - 2013, EllisLab, Inc. (http://ellislab.com/)
  *
  * NOTICE OF LICENSE
  *
  * Licensed under the Open Software License version 3.0
  *
  * This source file is subject to the Open Software License (OSL 3.0) that is
- * bundled with this package in the files license.txt / license.rst.  It is
+ * bundled with this package in the files license.txt / license.rst. It is
  * also available through the world wide web at this URL:
  * http://opensource.org/licenses/OSL-3.0
  * If you did not receive a copy of the license and are unable to obtain it
- * through the world wide web, please send an email to
- * licensing@ellislab.com so we can send you a copy immediately.
+ * through the world wide web, please send an email to licensing@xylophone.io
+ * so we can send you a copy immediately.
  *
- * @package		CodeIgniter
- * @author		EllisLab Dev Team
- * @copyright	Copyright (c) 2008 - 2013, EllisLab, Inc. (http://ellislab.com/)
- * @license		http://opensource.org/licenses/OSL-3.0 Open Software License (OSL 3.0)
- * @link		http://codeigniter.com
- * @since		Version 3.0
+ * @package     Xylophone
+ * @author      Xylophone Dev Team, EllisLab Dev Team
+ * @copyright   Copyright (c) 2014, Xylophone Team (http://xylophone.io/)
+ * @license     http://opensource.org/licenses/OSL-3.0 Open Software License (OSL 3.0)
+ * @link        http://xylophone.io
+ * @since       Version 1.0
  * @filesource
  */
+namespace Xylophone\libraries\Cache\Redis;
+
 defined('BASEPATH') OR exit('No direct script access allowed');
 
 /**
- * CodeIgniter Redis Caching Class
+ * Xylophone Redis Caching Class
  *
- * @package	   CodeIgniter
- * @subpackage Libraries
- * @category   Core
- * @author	   Anton Lindqvist <anton@qvister.se>
- * @link
+ * @package     Xylophone
+ * @subpackage  libraries/Cache/Redis
+ * @link        http://xylophone.io/user_guide/libraries/caching.html
  */
-class CI_Cache_redis extends CI_Driver
+class CacheRedis extends \Xylophone\libraries\Cache\Cache
 {
-	/**
-	 * Default config
-	 *
-	 * @static
-	 * @var	array
-	 */
-	protected static $_default_config = array(
-		'socket_type' => 'tcp',
-		'host' => '127.0.0.1',
-		'password' => NULL,
-		'port' => 6379,
-		'timeout' => 0
-	);
+    /** @var    array   Configuration items */
+    protected $config = array(
+        'socket_type' => 'tcp',
+        'host' => '127.0.0.1',
+        'password' => NULL,
+        'port' => 6379,
+        'timeout' => 0
+    );
 
-	/**
-	 * Redis connection
-	 *
-	 * @var	Redis
-	 */
-	protected $_redis;
+    /** @var    Redis   Redis connection */
+    protected $redis;
 
-	// ------------------------------------------------------------------------
+    /**
+     * Initialize
+     *
+     * Loads Redis config file if present. Will halt execution
+     * if a Redis connection can't be established.
+     *
+     * @return  void
+     */
+    protected function initialize()
+    {
+        global $XY;
 
-	/**
-	 * Get cache
-	 *
-	 * @param	string	Cache key identifier
-	 * @return	mixed
-	 */
-	public function get($key)
-	{
-		return $this->_redis->get($key);
-	}
+        $config = $XY->config->get('redis', 'config');
+        is_array($config) && $this->config = array_merge($this->config, $config);
 
-	// ------------------------------------------------------------------------
+        $this->redis = new Redis();
 
-	/**
-	 * Save cache
-	 *
-	 * @param	string	Cache key identifier
-	 * @param	mixed	Data to save
-	 * @param	int	Time to live
-	 * @return	bool
-	 */
-	public function save($key, $value, $ttl = NULL)
-	{
-		return ($ttl)
-			? $this->_redis->setex($key, $ttl, $value)
-			: $this->_redis->set($key, $value);
-	}
+        try {
+            if ($config['socket_type'] === 'unix') {
+                // Unix socket
+                $success = $this->redis->connect($config['socket']);
+            }
+            else {
+                // TCP socket
+                $success = $this->redis->connect($config['host'], $config['port'], $config['timeout']);
+            }
 
-	// ------------------------------------------------------------------------
+            if (!$success) {
+                $XY->logger->debug('Cache: Redis connection refused. Check the config.');
+                return;
+            }
+        }
+        catch (RedisException $e) {
+            $XY->logger->debug('Cache: Redis connection refused ('.$e->getMessage().')');
+            return;
+        }
 
-	/**
-	 * Delete from cache
-	 *
-	 * @param	string	Cache key
-	 * @return	bool
-	 */
-	public function delete($key)
-	{
-		return ($this->_redis->delete($key) === 1);
-	}
+        isset($config['password']) && $this->redis->auth($config['password']);
+    }
 
-	// ------------------------------------------------------------------------
+    /**
+     * Destructor
+     *
+     * Closes the connection to Redis if present.
+     *
+     * @return  void
+     */
+    public function __destruct()
+    {
+        $this->redis && $this->redis->close();
+    }
 
-	/**
-	 * Clean cache
-	 *
-	 * @return	bool
-	 * @see		Redis::flushDB()
-	 */
-	public function clean()
-	{
-		return $this->_redis->flushDB();
-	}
+    /**
+     * Get Cache Item
+     *
+     * @param   string  $id     Item ID
+     * @return  mixed   Value on success, otherwise FALSE
+     */
+    public function get($key)
+    {
+        return $this->redis->get($key);
+    }
 
-	// ------------------------------------------------------------------------
+    /**
+     * Save Cache Item
+     *
+     * @param   string  $id     Item ID
+     * @param   mixed   $data   Data to store
+     * @param   int     $ttl    Cache TTL (in seconds)
+     * @return  bool    TRUE on success, otherwise FALSE
+     */
+    public function save($key, $value, $ttl = null)
+    {
+        return $ttl ? $this->redis->setex($key, $ttl, $value) : $this->redis->set($key, $value);
+    }
 
-	/**
-	 * Get cache driver info
-	 *
-	 * @param	string	Not supported in Redis.
-	 *			Only included in order to offer a
-	 *			consistent cache API.
-	 * @return	array
-	 * @see		Redis::info()
-	 */
-	public function cache_info($type = NULL)
-	{
-		return $this->_redis->info();
-	}
+    /**
+     * Delete Cache Item
+     *
+     * @param   string  $id     Item ID
+     * @return  bool    TRUE on success, otherwise FALSE
+     */
+    public function delete($key)
+    {
+        return ($this->redis->delete($key) === 1);
+    }
 
-	// ------------------------------------------------------------------------
+    /**
+     * Clean cache
+     *
+     * @return  bool    TRUE on success, otherwise FALSE
+     */
+    public function clean()
+    {
+        return $this->redis->flushDB();
+    }
 
-	/**
-	 * Get cache metadata
-	 *
-	 * @param	string	Cache key
-	 * @return	array
-	 */
-	public function get_metadata($key)
-	{
-		$value = $this->get($key);
+    /**
+     * Get Cache Info
+     *
+     * @param   string  $type   Ignored
+     * @return  mixed   Cache info array on success, otherwise FALSE
+     */
+    public function cacheInfo($type = null)
+    {
+        return $this->redis->info();
+    }
 
-		if ($value)
-		{
-			return array(
-				'expire' => time() + $this->_redis->ttl($key),
-				'data' => $value
-			);
-		}
+    /**
+     * Get Cache Metadata
+     *
+     * @param   string  $id     Item ID
+     * @return  mixed   Cache item metadata
+     */
+    public function getMetadata($key)
+    {
+        $value = $this->get($key);
+        if ($value) {
+            return array('expire' => time() + $this->redis->ttl($key), 'data' => $value);
+        }
 
-		return FALSE;
-	}
+        return false;
+    }
 
-	// ------------------------------------------------------------------------
+    /**
+     * Is Supported
+     *
+     * @return  bool    TRUE if supported, otherwise FALSE
+     */
+    public function isSupported()
+    {
+        global $XY;
 
-	/**
-	 * Check if Redis driver is supported
-	 *
-	 * @return	bool
-	 */
-	public function is_supported()
-	{
-		if (extension_loaded('redis'))
-		{
-			return $this->_setup_redis();
-		}
-		else
-		{
-			log_message('debug', 'The Redis extension must be loaded to use Redis cache.');
-			return FALSE;
-		}
-	}
+        if (!extension_loaded('redis')) { {
+            $XY->logger->debug('The Redis extension must be loaded to use Redis cache.');
+            return false;
+        }
 
-	// ------------------------------------------------------------------------
-
-	/**
-	 * Setup Redis config and connection
-	 *
-	 * Loads Redis config file if present. Will halt execution
-	 * if a Redis connection can't be established.
-	 *
-	 * @return	bool
-	 * @see		Redis::connect()
-	 */
-	protected function _setup_redis()
-	{
-		$config = array();
-		$CI =& get_instance();
-
-		if ($CI->config->load('redis', TRUE, TRUE))
-		{
-			$config += $CI->config->item('redis');
-		}
-
-		$config = array_merge(self::$_default_config, $config);
-
-		$this->_redis = new Redis();
-
-		try
-		{
-			if ($config['socket_type'] === 'unix')
-			{
-				$success = $this->_redis->connect($config['socket']);
-			}
-			else // tcp socket
-			{
-				$success = $this->_redis->connect($config['host'], $config['port'], $config['timeout']);
-			}
-			
-			if ( ! $success)
-			{
-				log_message('debug', 'Cache: Redis connection refused. Check the config.');
-				return FALSE;
-			}
-		}
-		catch (RedisException $e)
-		{
-			log_message('debug', 'Cache: Redis connection refused ('.$e->getMessage().')');
-			return FALSE;
-		}
-
-		if (isset($config['password']))
-		{
-			$this->_redis->auth($config['password']);
-		}
-		
-		return TRUE;
-	}
-
-	// ------------------------------------------------------------------------
-
-	/**
-
-	 * Class destructor
-	 *
-	 * Closes the connection to Redis if present.
-	 *
-	 * @return	void
-	 */
-	public function __destruct()
-	{
-		if ($this->_redis)
-		{
-			$this->_redis->close();
-		}
-	}
-
+        return true;
+    }
 }
 
-/* End of file Cache_redis.php */
-/* Location: ./system/libraries/Cache/drivers/Cache_redis.php */

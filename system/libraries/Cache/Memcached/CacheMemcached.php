@@ -1,253 +1,199 @@
 <?php
 /**
- * CodeIgniter
+ * Xylophone
  *
- * An open source application development framework for PHP 5.2.4 or newer
+ * An open source HMVC application development framework for PHP 5.3 or newer
+ * Derived from CodeIgniter, Copyright (c) 2008 - 2013, EllisLab, Inc. (http://ellislab.com/)
  *
  * NOTICE OF LICENSE
  *
  * Licensed under the Open Software License version 3.0
  *
  * This source file is subject to the Open Software License (OSL 3.0) that is
- * bundled with this package in the files license.txt / license.rst.  It is
+ * bundled with this package in the files license.txt / license.rst. It is
  * also available through the world wide web at this URL:
  * http://opensource.org/licenses/OSL-3.0
  * If you did not receive a copy of the license and are unable to obtain it
- * through the world wide web, please send an email to
- * licensing@ellislab.com so we can send you a copy immediately.
+ * through the world wide web, please send an email to licensing@xylophone.io
+ * so we can send you a copy immediately.
  *
- * @package		CodeIgniter
- * @author		EllisLab Dev Team
- * @copyright	Copyright (c) 2008 - 2013, EllisLab, Inc. (http://ellislab.com/)
- * @license		http://opensource.org/licenses/OSL-3.0 Open Software License (OSL 3.0)
- * @link		http://codeigniter.com
- * @since		Version 2.0
+ * @package     Xylophone
+ * @author      Xylophone Dev Team, EllisLab Dev Team
+ * @copyright   Copyright (c) 2014, Xylophone Team (http://xylophone.io/)
+ * @license     http://opensource.org/licenses/OSL-3.0 Open Software License (OSL 3.0)
+ * @link        http://xylophone.io
+ * @since       Version 1.0
  * @filesource
  */
+namespace Xylophone\libraries\Cache\Memcached;
+
 defined('BASEPATH') OR exit('No direct script access allowed');
 
 /**
- * CodeIgniter Memcached Caching Class
+ * Xylophone Memcached Caching Class
  *
- * @package		CodeIgniter
- * @subpackage	Libraries
- * @category	Core
- * @author		EllisLab Dev Team
- * @link
+ * @package     Xylophone
+ * @subpackage  libraries/Cache/Memcached
+ * @link        http://xylophone.io/user_guide/libraries/caching.html
  */
-class CI_Cache_memcached extends CI_Driver {
+class CacheMemcached extends \Xylophone\libraries\Cache\Cache
+{
+    /** @var    object  Memcached object */
+    protected $memcached;
 
-	/**
-	 * Holds the memcached object
-	 *
-	 * @var object
-	 */
-	protected $_memcached;
+    /** @var    array   Memcached configuration */
+    protected $memcache_conf = array(
+        'default' => array(
+            'host' => '127.0.0.1',
+            'port' => 11211,
+            'weight' => 1
+        )
+    );
 
-	/**
-	 * Memcached configuration
-	 *
-	 * @var array
-	 */
-	protected $_memcache_conf	= array(
-		'default' => array(
-			'host'		=> '127.0.0.1',
-			'port'		=> 11211,
-			'weight'	=> 1
-		)
-	);
+    /**
+     * Initialize
+     *
+     * @return  void
+     */
+    protected function initialize()
+    {
+        global $XY;
 
-	/**
-	 * Fetch from cache
-	 *
-	 * @param	mixed	unique key id
-	 * @return	mixed	data on success/false on failure
-	 */
-	public function get($id)
-	{
-		$data = $this->_memcached->get($id);
+        // Try to load memcached server info from the config file.
+        $config = $XY->config->get('memcached', 'config');
+        if (is_array($config)) {
+            $defaults = $this->memcache_conf['default'];
+            $this->memcache_conf = $config;
+        }
 
-		return is_array($data) ? $data[0] : FALSE;
-	}
+        if (class_exists('Memcached', false)) {
+            $this->memcached = new Memcached();
+        }
+        elseif (class_exists('Memcache', false)) {
+            $this->memcached = new Memcache();
+        }
+        else {
+            $XY->logger->error('Failed to create object for Memcached Cache; extension not loaded?');
+            return;
+        }
 
-	// ------------------------------------------------------------------------
+        foreach ($this->memcache_conf as $server) {
+            isset($server['hostname']) || $server['hostname'] = $defaults['host'];
+            isset($server['port']) || $server['port'] = $defaults['host'];
+            isset($server['weight']) || $server['weight'] = $defaults['weight'];
 
-	/**
-	 * Save
-	 *
-	 * @param	string	unique identifier
-	 * @param	mixed	data being cached
-	 * @param	int	time to live
-	 * @return	bool	true on success, false on failure
-	 */
-	public function save($id, $data, $ttl = 60)
-	{
-		if (get_class($this->_memcached) === 'Memcached')
-		{
-			return $this->_memcached->set($id, array($data, time(), $ttl), $ttl);
-		}
-		elseif (get_class($this->_memcached) === 'Memcache')
-		{
-			return $this->_memcached->set($id, array($data, time(), $ttl), 0, $ttl);
-		}
+            if (get_class($this->memcached) === 'Memcache') {
+                // Third parameter is persistance and defaults to TRUE.
+                $this->memcached->addServer($server['hostname'], $server['port'], true, $server['weight']);
+            }
+            else {
+                $this->memcached->addServer($server['hostname'], $server['port'], $server['weight']);
+            }
+        }
+    }
 
-		return FALSE;
-	}
+    /**
+     * Get Cache Item
+     *
+     * @param   string  $id     Item ID
+     * @return  mixed   Value on success, otherwise FALSE
+     */
+    public function get($id)
+    {
+        $data = $this->memcached->get($id);
+        return is_array($data) ? $data[0] : false;
+    }
 
-	// ------------------------------------------------------------------------
+    /**
+     * Save Cache Item
+     *
+     * @param   string  $id     Item ID
+     * @param   mixed   $data   Data to store
+     * @param   int     $ttl    Cache TTL (in seconds)
+     * @return  bool    TRUE on success, otherwise FALSE
+     */
+    public function save($id, $data, $ttl = 60)
+    {
+        if (get_class($this->memcached) === 'Memcached') {
+            return $this->memcached->set($id, array($data, time(), $ttl), $ttl);
+        }
+        elseif (get_class($this->memcached) === 'Memcache') {
+            return $this->memcached->set($id, array($data, time(), $ttl), 0, $ttl);
+        }
 
-	/**
-	 * Delete from Cache
-	 *
-	 * @param	mixed	key to be deleted.
-	 * @return	bool	true on success, false on failure
-	 */
-	public function delete($id)
-	{
-		return $this->_memcached->delete($id);
-	}
+        return false;
+    }
 
-	// ------------------------------------------------------------------------
+    /**
+     * Delete Cache Item
+     *
+     * @param   string  $id     Item ID
+     * @return  bool    TRUE on success, otherwise FALSE
+     */
+    public function delete($id)
+    {
+        return $this->memcached->delete($id);
+    }
 
-	/**
-	 * Clean the Cache
-	 *
-	 * @return	bool	false on failure/true on success
-	 */
-	public function clean()
-	{
-		return $this->_memcached->flush();
-	}
+    /**
+     * Clean Cache
+     *
+     * @return  bool    TRUE on success, otherwise FALSE
+     */
+    public function clean()
+    {
+        return $this->memcached->flush();
+    }
 
-	// ------------------------------------------------------------------------
+    /**
+     * Get Cache Info
+     *
+     * @param   string  $type   Ignored
+     * @return  mixed   Cache info array on success, otherwise FALSE
+     */
+    public function cacheInfo($type = null)
+    {
+        return $this->memcached->getStats();
+    }
 
-	/**
-	 * Cache Info
-	 *
-	 * @return	mixed	array on success, false on failure
-	 */
-	public function cache_info()
-	{
-		return $this->_memcached->getStats();
-	}
+    /**
+     * Get Cache Metadata
+     *
+     * @param   string  $id     Item ID
+     * @return  mixed   Cache item metadata
+     */
+    public function getMetadata($id)
+    {
+        $stored = $this->memcached->get($id);
 
-	// ------------------------------------------------------------------------
+        if (count($stored) !== 3) {
+            return false;
+        }
 
-	/**
-	 * Get Cache Metadata
-	 *
-	 * @param	mixed	key to get cache metadata on
-	 * @return	mixed	FALSE on failure, array on success.
-	 */
-	public function get_metadata($id)
-	{
-		$stored = $this->_memcached->get($id);
+        list($data, $time, $ttl) = $stored;
 
-		if (count($stored) !== 3)
-		{
-			return FALSE;
-		}
+        return array(
+            'expire' => $time + $ttl,
+            'mtime' => $time,
+            'data' => $data
+        );
+    }
 
-		list($data, $time, $ttl) = $stored;
+    /**
+     * Is Supported
+     *
+     * @return  bool    TRUE if supported, otherwise FALSE
+     */
+    public function isSupported()
+    {
+        global $XY;
 
-		return array(
-			'expire'	=> $time + $ttl,
-			'mtime'		=> $time,
-			'data'		=> $data
-		);
-	}
+        if (!extension_loaded('memcached') && !extension_loaded('memcache')) {
+            $XY->logger->debug('The Memcached Extension must be loaded to use Memcached Cache.');
+            return false;
+        }
 
-	// ------------------------------------------------------------------------
-
-	/**
-	 * Setup memcached.
-	 *
-	 * @return	bool
-	 */
-	protected function _setup_memcached()
-	{
-		// Try to load memcached server info from the config file.
-		$CI =& get_instance();
-
-		if ($CI->config->load('memcached', TRUE, TRUE))
-		{
-			if (is_array($CI->config->config['memcached']))
-			{
-				$defaults = $this->_memcache_conf['default'];
-				$this->_memcache_conf = array();
-
-				foreach ($CI->config->config['memcached'] as $name => $conf)
-				{
-					$this->_memcache_conf[$name] = $conf;
-				}
-			}
-		}
-
-		if (class_exists('Memcached', FALSE))
-		{
-			$this->_memcached = new Memcached();
-		}
-		elseif (class_exists('Memcache', FALSE))
-		{
-			$this->_memcached = new Memcache();
-		}
-		else
-		{
-			log_message('error', 'Failed to create object for Memcached Cache; extension not loaded?');
-			return FALSE;
-		}
-
-		foreach ($this->_memcache_conf as $cache_server)
-		{
-			isset($cache_server['hostname']) OR $cache_server['hostname'] = $defaults['host'];
-			isset($cache_server['port']) OR $cache_server['port'] = $defaults['host'];
-			isset($cache_server['weight']) OR $cache_server['weight'] = $defaults['weight'];
-
-			if (get_class($this->_memcached) === 'Memcache')
-			{
-				// Third parameter is persistance and defaults to TRUE.
-				$this->_memcached->addServer(
-					$cache_server['hostname'],
-					$cache_server['port'],
-					TRUE,
-					$cache_server['weight']
-				);
-			}
-			else
-			{
-				$this->_memcached->addServer(
-					$cache_server['hostname'],
-					$cache_server['port'],
-					$cache_server['weight']
-				);
-			}
-		}
-
-		return TRUE;
-	}
-
-	// ------------------------------------------------------------------------
-
-	/**
-	 * Is supported
-	 *
-	 * Returns FALSE if memcached is not supported on the system.
-	 * If it is, we setup the memcached object & return TRUE
-	 *
-	 * @return	bool
-	 */
-	public function is_supported()
-	{
-		if ( ! extension_loaded('memcached') && ! extension_loaded('memcache'))
-		{
-			log_message('debug', 'The Memcached Extension must be loaded to use Memcached Cache.');
-			return FALSE;
-		}
-
-		return $this->_setup_memcached();
-	}
-
+        return true;
+    }
 }
 
-/* End of file Cache_memcached.php */
-/* Location: ./system/libraries/Cache/drivers/Cache_memcached.php */

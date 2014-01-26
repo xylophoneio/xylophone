@@ -1,237 +1,152 @@
 <?php
 /**
- * CodeIgniter
+ * Xylophone
  *
- * An open source application development framework for PHP 5.2.4 or newer
+ * An open source HMVC application development framework for PHP 5.3 or newer
+ * Derived from CodeIgniter, Copyright (c) 2008 - 2013, EllisLab, Inc. (http://ellislab.com/)
  *
  * NOTICE OF LICENSE
  *
  * Licensed under the Open Software License version 3.0
  *
  * This source file is subject to the Open Software License (OSL 3.0) that is
- * bundled with this package in the files license.txt / license.rst.  It is
+ * bundled with this package in the files license.txt / license.rst. It is
  * also available through the world wide web at this URL:
  * http://opensource.org/licenses/OSL-3.0
  * If you did not receive a copy of the license and are unable to obtain it
- * through the world wide web, please send an email to
- * licensing@ellislab.com so we can send you a copy immediately.
+ * through the world wide web, please send an email to licensing@xylophone.io
+ * so we can send you a copy immediately.
  *
- * @package		CodeIgniter
- * @author		EllisLab Dev Team
- * @copyright	Copyright (c) 2008 - 2013, EllisLab, Inc. (http://ellislab.com/)
- * @license		http://opensource.org/licenses/OSL-3.0 Open Software License (OSL 3.0)
- * @link		http://codeigniter.com
- * @since		Version 2.0
+ * @package     Xylophone
+ * @author      Xylophone Dev Team, EllisLab Dev Team
+ * @copyright   Copyright (c) 2014, Xylophone Team (http://xylophone.io/)
+ * @license     http://opensource.org/licenses/OSL-3.0 Open Software License (OSL 3.0)
+ * @link        http://xylophone.io
+ * @since       Version 1.0
  * @filesource
  */
+namespace Xylophone\libraries\Cache;
+
 defined('BASEPATH') OR exit('No direct script access allowed');
 
 /**
- * CodeIgniter Caching Class
+ * Xylophone Caching Class
  *
- * @package		CodeIgniter
- * @subpackage	Libraries
- * @category	Core
- * @author		EllisLab Dev Team
- * @link
+ * @package     Xylophone
+ * @subpackage  libraries/Session
+ * @link        http://xylophone.io/user_guide/libraries/caching.html
  */
-class CI_Cache extends CI_Driver_Library {
+abstract class Cache
+{
+    /** @var    string  Loaded driver name */
+    public $driver = '';
 
-	/**
-	 * Valid cache drivers
-	 *
-	 * @var array
-	 */
-	protected $valid_drivers = array(
-		'apc',
-		'dummy',
-		'file',
-		'memcached',
-		'redis',
-		'wincache'
-	);
+    /** @var    string  Cache key prefix */
+    public $key_prefix = '';
 
-	/**
-	 * Path of cache files (if file-based cache)
-	 *
-	 * @var string
-	 */
-	protected $_cache_path = NULL;
+    /** @var    string  Path of cache files (if file-based cache) */
+    protected $cache_path = null;
 
-	/**
-	 * Reference to the driver
-	 *
-	 * @var mixed
-	 */
-	protected $_adapter = 'dummy';
+    /**
+     * Constructor
+     *
+     * Initialize class properties based on the configuration array.
+     *
+     * @param   array   $config Configuration parameters
+     * @param   array   $extras Extra config params
+     * @return  void
+     */
+    public function __construct(array $config = array(), array $extras = array())
+    {
+        global $XY;
 
-	/**
-	 * Fallback driver
-	 *
-	 * @var string
-	 */
-	protected $_backup_driver = 'dummy';
+        // Check driver support
+        if (!$this->isSupported()) {
+            // Try backup if configured, or fall back to dummy driver
+            $alternate = isset($extras['backup']) && $extras['backup'] !== $this->driver ? $extras['backup'] : 'dummy';
+            throw new \Xylophone\core\UnsupportedException($alternate);
+        }
 
-	/**
-	 * Cache key prefix
-	 *
-	 * @var	string
-	 */
-	public $key_prefix = '';
+        // Load config values
+        foreach ($config as $key => $val) {
+            $this->$key = $val;
+        }
 
-	/**
-	 * Constructor
-	 *
-	 * Initialize class properties based on the configuration array.
-	 *
-	 * @param	array	$config = array()
-	 * @return	void
-	 */
-	public function __construct($config = array())
-	{
-		$default_config = array(
-			'adapter',
-			'memcached'
-		);
+        // Save driver name
+        isset($extras['driver']) && $this->driver = $extras['driver'];
 
-		foreach ($default_config as $key)
-		{
-			if (isset($config[$key]))
-			{
-				$param = '_'.$key;
+        // Call initialize
+        $this->initialize();
+    }
 
-				$this->{$param} = $config[$key];
-			}
-		}
+    /**
+     * Initialize Driver
+     *
+     * Overload this method to initialize the driver.
+     * This method is not abstract so drivers don't have to implement it
+     * if they don't need it.
+     *
+     * @return  void
+     */
+    protected function initialize()
+    {
+        // Nothing to do here by default
+    }
 
-		isset($config['key_prefix']) && $this->key_prefix = $config['key_prefix'];
+    /**
+     * Get Cache Item
+     *
+     * @param   string  $id     Item ID
+     * @return  mixed   Value on success, otherwise FALSE
+     */
+    abstract public function get($id);
 
-		if (isset($config['backup']) && in_array($config['backup'], $this->valid_drivers))
-		{
-			$this->_backup_driver = $config['backup'];
-		}
+    /**
+     * Save Cache Item
+     *
+     * @param   string  $id     Item ID
+     * @param   mixed   $data   Data to store
+     * @param   int     $ttl    Cache TTL (in seconds)
+     * @return  bool    TRUE on success, otherwise FALSE
+     */
+    abstract public function save($id, $data, $ttl);
 
-		// If the specified adapter isn't available, check the backup.
-		if ( ! $this->is_supported($this->_adapter))
-		{
-			if ( ! $this->is_supported($this->_backup_driver))
-			{
-				// Backup isn't supported either. Default to 'Dummy' driver.
-				log_message('error', 'Cache adapter "'.$this->_adapter.'" and backup "'.$this->_backup_driver.'" are both unavailable. Cache is now using "Dummy" adapter.');
-				$this->_adapter = 'dummy';
-			}
-			else
-			{
-				// Backup is supported. Set it to primary.
-				log_message('debug', 'Cache adapter "'.$this->_adapter.'" is unavailable. Falling back to "'.$this->_backup_driver.'" backup adapter.');
-				$this->_adapter = $this->_backup_driver;
-			}
-		}
-	}
+    /**
+     * Delete Cache item
+     *
+     * @param   string  $id     Item ID
+     * @return  bool    TRUE on success, otherwise FALSE
+     */
+    abstract public function delete($id);
 
-	// ------------------------------------------------------------------------
+    /**
+     * Clean Cache
+     *
+     * @return  bool    TRUE on success, otherwise FALSE
+     */
+    abstract public function clean();
 
-	/**
-	 * Get
-	 *
-	 * Look for a value in the cache. If it exists, return the data
-	 * if not, return FALSE
-	 *
-	 * @param	string	$id
-	 * @return	mixed	value matching $id or FALSE on failure
-	 */
-	public function get($id)
-	{
-		return $this->{$this->_adapter}->get($this->key_prefix.$id);
-	}
+    /**
+     * Get Cache Info
+     *
+     * @param   string  $type   User/filehits
+     * @return  mixed   Cache info array on success, otherwise FALSE
+     */
+    abstract public function cacheInfo($type);
 
-	// ------------------------------------------------------------------------
+    /**
+     * Get Cache Metadata
+     *
+     * @param   string  $id     Item ID
+     * @return  mixed   Cache item metadata
+     */
+    abstract public function getMetadata($id);
 
-	/**
-	 * Cache Save
-	 *
-	 * @param	string	$id		Cache ID
-	 * @param	mixed	$data		Data to store
-	 * @param	int	$ttl = 60	Cache TTL (in seconds)
-	 * @return	bool	TRUE on success, FALSE on failure
-	 */
-	public function save($id, $data, $ttl = 60)
-	{
-		return $this->{$this->_adapter}->save($this->key_prefix.$id, $data, $ttl);
-	}
-
-	// ------------------------------------------------------------------------
-
-	/**
-	 * Delete from Cache
-	 *
-	 * @param	string	$id	Cache ID
-	 * @return	bool	TRUE on success, FALSE on failure
-	 */
-	public function delete($id)
-	{
-		return $this->{$this->_adapter}->delete($this->key_prefix.$id);
-	}
-
-	// ------------------------------------------------------------------------
-
-	/**
-	 * Clean the cache
-	 *
-	 * @return	bool	TRUE on success, FALSE on failure
-	 */
-	public function clean()
-	{
-		return $this->{$this->_adapter}->clean();
-	}
-
-	// ------------------------------------------------------------------------
-
-	/**
-	 * Cache Info
-	 *
-	 * @param	string	$type = 'user'	user/filehits
-	 * @return	mixed	array containing cache info on success OR FALSE on failure
-	 */
-	public function cache_info($type = 'user')
-	{
-		return $this->{$this->_adapter}->cache_info($type);
-	}
-
-	// ------------------------------------------------------------------------
-
-	/**
-	 * Get Cache Metadata
-	 *
-	 * @param	string	$id	key to get cache metadata on
-	 * @return	mixed	cache item metadata
-	 */
-	public function get_metadata($id)
-	{
-		return $this->{$this->_adapter}->get_metadata($this->key_prefix.$id);
-	}
-
-	// ------------------------------------------------------------------------
-
-	/**
-	 * Is the requested driver supported in this environment?
-	 *
-	 * @param	string	$driver	The driver to test
-	 * @return	array
-	 */
-	public function is_supported($driver)
-	{
-		static $support = array();
-
-		if ( ! isset($support[$driver]))
-		{
-			$support[$driver] = $this->{$driver}->is_supported();
-		}
-
-		return $support[$driver];
-	}
-
+    /**
+     * Is Supported
+     *
+     * @return  bool    TRUE if supported, otherwise FALSE
+     */
+    abstract public function isSupported();
 }
 
-/* End of file Cache.php */
-/* Location: ./system/libraries/Cache/Cache.php */
