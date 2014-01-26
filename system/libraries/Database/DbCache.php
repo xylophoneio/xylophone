@@ -1,218 +1,189 @@
 <?php
 /**
- * CodeIgniter
+ * Xylophone
  *
- * An open source application development framework for PHP 5.2.4 or newer
+ * An open source HMVC application development framework for PHP 5.3 or newer
+ * Derived from CodeIgniter, Copyright (c) 2008 - 2013, EllisLab, Inc. (http://ellislab.com/)
  *
  * NOTICE OF LICENSE
  *
  * Licensed under the Open Software License version 3.0
  *
  * This source file is subject to the Open Software License (OSL 3.0) that is
- * bundled with this package in the files license.txt / license.rst.  It is
+ * bundled with this package in the files license.txt / license.rst. It is
  * also available through the world wide web at this URL:
  * http://opensource.org/licenses/OSL-3.0
  * If you did not receive a copy of the license and are unable to obtain it
- * through the world wide web, please send an email to
- * licensing@ellislab.com so we can send you a copy immediately.
+ * through the world wide web, please send an email to licensing@xylophone.io
+ * so we can send you a copy immediately.
  *
- * @package		CodeIgniter
- * @author		EllisLab Dev Team
- * @copyright	Copyright (c) 2008 - 2013, EllisLab, Inc. (http://ellislab.com/)
- * @license		http://opensource.org/licenses/OSL-3.0 Open Software License (OSL 3.0)
- * @link		http://codeigniter.com
- * @since		Version 1.0
+ * @package     Xylophone
+ * @author      Xylophone Dev Team, EllisLab Dev Team
+ * @copyright   Copyright (c) 2014, Xylophone Team (http://xylophone.io/)
+ * @license     http://opensource.org/licenses/OSL-3.0 Open Software License (OSL 3.0)
+ * @link        http://xylophone.io
+ * @since       Version 1.0
  * @filesource
  */
+namespace Xylophone\libraries\Database;
+
 defined('BASEPATH') OR exit('No direct script access allowed');
 
 /**
  * Database Cache Class
  *
- * @category	Database
- * @author		EllisLab Dev Team
- * @link		http://codeigniter.com/user_guide/database/
+ * @package     Xylophone
+ * @subpackage  libraries/Database
+ * @link        http://xylophone.io/user_guide/database/
  */
-class CI_DB_Cache {
+class DBCache
+{
+    /** @var    object  Database object to support multiple databases */
+    public $db;
 
-	/**
-	 * CI Singleton
-	 *
-	 * @var	object
-	 */
-	public $CI;
+    /**
+     * Constructor
+     *
+     * @param   object  $db     Database object
+     * @return  void
+     */
+    public function __construct($db)
+    {
+        global $XY;
 
-	/**
-	 * Database object
-	 *
-	 * Allows passing of DB object so that multiple database connections
-	 * and returned DB objects can be supported.
-	 *
-	 * @var	object
-	 */
-	public $db;
+        // Load the file library since we use it a lot
+        $this->db = $db;
+        $XY->load->library('file');
+        $this->checkPath();
+    }
 
-	// --------------------------------------------------------------------
+    /**
+     * Set Cache Directory Path
+     *
+     * @param   string  $path   Path to the cache directory
+     * @return  bool
+     */
+    public function checkPath($path = '')
+    {
+        global $XY;
 
-	/**
-	 * Constructor
-	 *
-	 * @param	object	&$db
-	 * @return	void
-	 */
-	public function __construct(&$db)
-	{
-		// Assign the main CI object to $this->CI and load the file helper since we use it a lot
-		$this->CI =& get_instance();
-		$this->db =& $db;
-		$this->CI->load->helper('file');
+        if ($path === '') {
+            if ($this->db->cachedir === '') {
+                return $this->db->cacheOff();
+            }
 
-		$this->check_path();
-	}
+            $path = $this->db->cachedir;
+        }
 
-	// --------------------------------------------------------------------
+        // Add a trailing slash to the path if needed
+        $rpath = realpath($path);
+        $path = rtrim($rpath ? $rpath : $path, DIRECTORY_SEPARATOR).DIRECTORY_SEPARATOR;
 
-	/**
-	 * Set Cache Directory Path
-	 *
-	 * @param	string	$path	Path to the cache directory
-	 * @return	bool
-	 */
-	public function check_path($path = '')
-	{
-		if ($path === '')
-		{
-			if ($this->db->cachedir === '')
-			{
-				return $this->db->cache_off();
-			}
+        if (!is_dir($path)) {
+            // If the path is wrong we'll turn off caching
+            $XY->logger->debug('DB cache path error: '.$path);
+            return $this->db->cacheOff();
+        }
 
-			$path = $this->db->cachedir;
-		}
+        if (!$XY->isWritable($path)) {
+            // If the path is not really writable we'll turn off caching
+            $XY->logger->debug('DB cache dir not writable: '.$path);
+            return $this->db->cacheOff();
+        }
 
-		// Add a trailing slash to the path if needed
-		$path = realpath($path)
-			? rtrim(realpath($path), DIRECTORY_SEPARATOR).DIRECTORY_SEPARATOR
-			: rtrim($path, '/').'/';
+        $this->db->cachedir = $path;
+        return true;
+    }
 
-		if ( ! is_dir($path))
-		{
-			log_message('debug', 'DB cache path error: '.$path);
+    /**
+     * Retrieve a cached query
+     *
+     * The URI being requested will become the name of the cache sub-folder.
+     * An MD5 hash of the SQL statement will become the cache file name.
+     *
+     * @param   string  $sql    Query string
+     * @return  string
+     */
+    public function read($sql)
+    {
+        global $XY;
 
-			// If the path is wrong we'll turn off caching
-			return $this->db->cache_off();
-		}
+        $segment_one = $XY->uri->segment(1);
+        $segment_one === false && $segment_one = 'default';
+        $segment_two = $XY->uri->segment(2);
+        $segment_two === false && $segment_two = 'index';
+        $filepath = $this->db->cachedir.$segment_one.'+'.$segment_two.'/'.md5($sql);
 
-		if ( ! is_really_writable($path))
-		{
-			log_message('debug', 'DB cache dir not writable: '.$path);
+        $cachedata = @file_get_contents($filepath);
+        if ($cachedata === false) {
+            return false;
+        }
 
-			// If the path is not really writable we'll turn off caching
-			return $this->db->cache_off();
-		}
+        return unserialize($cachedata);
+    }
 
-		$this->db->cachedir = $path;
-		return TRUE;
-	}
+    /**
+     * Write a query to a cache file
+     *
+     * @param   string  $sql    Query string
+     * @param   object  $object Query data
+     * @return  bool    TRUE on success, otherwise FALSE
+     */
+    public function write($sql, $object)
+    {
+        global $XY;
 
-	// --------------------------------------------------------------------
+        $segment_one = $XY->uri->segment(1);
+        $segment_one === false && $segment_one = 'default';
+        $segment_two = $XY->uri->segment(2);
+        $segment_two === false && $segment_two = 'index';
+        $dir_path = $this->db->cachedir.$segment_one.'+'.$segment_two.'/';
+        $filename = md5($sql);
 
-	/**
-	 * Retrieve a cached query
-	 *
-	 * The URI being requested will become the name of the cache sub-folder.
-	 * An MD5 hash of the SQL statement will become the cache file name.
-	 *
-	 * @param	string	$sql
-	 * @return	string
-	 */
-	public function read($sql)
-	{
-		$segment_one = ($this->CI->uri->segment(1) == FALSE) ? 'default' : $this->CI->uri->segment(1);
-		$segment_two = ($this->CI->uri->segment(2) == FALSE) ? 'index' : $this->CI->uri->segment(2);
-		$filepath = $this->db->cachedir.$segment_one.'+'.$segment_two.'/'.md5($sql);
+        if (!@is_dir($dir_path)) {
+            if (!@mkdir($dir_path, DIR_WRITE_MODE)) {
+                return false;
+            }
 
-		if (FALSE === ($cachedata = @file_get_contents($filepath)))
-		{
-			return FALSE;
-		}
+            @chmod($dir_path, DIR_WRITE_MODE);
+        }
 
-		return unserialize($cachedata);
-	}
+        if ($XY->file->writeFile($dir_path.$filename, serialize($object)) === false) {
+            return false;
+        }
 
-	// --------------------------------------------------------------------
+        @chmod($dir_path.$filename, FILE_WRITE_MODE);
+        return true;
+    }
 
-	/**
-	 * Write a query to a cache file
-	 *
-	 * @param	string	$sql
-	 * @param	object	$object
-	 * @return	bool
-	 */
-	public function write($sql, $object)
-	{
-		$segment_one = ($this->CI->uri->segment(1) == FALSE) ? 'default' : $this->CI->uri->segment(1);
-		$segment_two = ($this->CI->uri->segment(2) == FALSE) ? 'index' : $this->CI->uri->segment(2);
-		$dir_path = $this->db->cachedir.$segment_one.'+'.$segment_two.'/';
-		$filename = md5($sql);
+    /**
+     * Delete cache files within a particular directory
+     *
+     * @param   string  $segment_one    First URL segment
+     * @param   string  $segment_two    Second URL segment
+     * @return  void
+     */
+    public function delete($segment_one = '', $segment_two = '')
+    {
+        global $XY;
 
-		if ( ! @is_dir($dir_path))
-		{
-			if ( ! @mkdir($dir_path, DIR_WRITE_MODE))
-			{
-				return FALSE;
-			}
+        $segment_one === '' && $segment_one = $XY->uri->segment(1);
+        $segment_one === false && $segment_one = 'default';
+        $segment_two == '' && $segment_two = $XY->uri->segment(2);
+        $segment_two === false && $segment_two = 'index';
+        $dir_path = $this->db->cachedir.$segment_one.'+'.$segment_two.'/';
+        $XY->file->deleteFiles($dir_path, true);
+    }
 
-			@chmod($dir_path, DIR_WRITE_MODE);
-		}
-
-		if (write_file($dir_path.$filename, serialize($object)) === FALSE)
-		{
-			return FALSE;
-		}
-
-		@chmod($dir_path.$filename, FILE_WRITE_MODE);
-		return TRUE;
-	}
-
-	// --------------------------------------------------------------------
-
-	/**
-	 * Delete cache files within a particular directory
-	 *
-	 * @param	string	$segment_one
-	 * @param	string	$segment_two
-	 * @return	void
-	 */
-	public function delete($segment_one = '', $segment_two = '')
-	{
-		if ($segment_one === '')
-		{
-			$segment_one  = ($this->CI->uri->segment(1) == FALSE) ? 'default' : $this->CI->uri->segment(1);
-		}
-
-		if ($segment_two === '')
-		{
-			$segment_two = ($this->CI->uri->segment(2) == FALSE) ? 'index' : $this->CI->uri->segment(2);
-		}
-
-		$dir_path = $this->db->cachedir.$segment_one.'+'.$segment_two.'/';
-		delete_files($dir_path, TRUE);
-	}
-
-	// --------------------------------------------------------------------
-
-	/**
-	 * Delete all existing cache files
-	 *
-	 * @return	void
-	 */
-	public function delete_all()
-	{
-		delete_files($this->db->cachedir, TRUE, TRUE);
-	}
-
+    /**
+     * Delete all existing cache files
+     *
+     * @return  void
+     */
+    public function deleteAll()
+    {
+        global $XY;
+        $XY->file->deleteFiles($this->db->cachedir, true, true);
+    }
 }
 
-/* End of file DB_cache.php */
-/* Location: ./system/database/DB_cache.php */

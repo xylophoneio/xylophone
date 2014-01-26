@@ -30,7 +30,7 @@ namespace Xylophone\libraries\Database\Pdo\subdrivers;
 defined('BASEPATH') OR exit('No direct script access allowed');
 
 /**
- * PDO IBM DB2 Database Driver Class
+ * PDO 4D Database Driver Class
  *
  * Note: DbBase is an extender class that extends the
  * Database class, including query builder if configured.
@@ -39,8 +39,11 @@ defined('BASEPATH') OR exit('No direct script access allowed');
  * @subpackage  libraries/Database/Pdo/subdrivers
  * @link        http://xylophone.io/user_guide/database/
  */
-class DatabasePdoIbm extends \Xylophone\libraries\Database\Pdo\DatabasePdo
+class DatabasePdo4D extends \Xylophone\libraries\Database\Pdo\DatabasePdo
 {
+    /** @var    string  Identifier escape character */
+    protected $escape_char = array('[', ']');
+
     /**
      * Initialize Database Settings
      *
@@ -51,44 +54,14 @@ class DatabasePdoIbm extends \Xylophone\libraries\Database\Pdo\DatabasePdo
         parent::initialize();
 
         if (empty($this->dsn)) {
-            $this->dsn = 'ibm:';
+            $this->dsn = '4D:host='.(empty($this->hostname) ? '127.0.0.1' : $this->hostname);
 
-            // Pre-defined DSN
-            if (empty($this->hostname) && empty($this->HOSTNAME) && empty($this->port) && empty($this->PORT)) {
-                if (isset($this->DSN)) {
-                    $this->dsn .= 'DSN='.$this->DSN;
-                }
-                elseif (!empty($this->database)) {
-                    $this->dsn .= 'DSN='.$this->database;
-                }
-
-                return;
-            }
-
-            $this->dsn .= 'DRIVER='.(isset($this->DRIVER) ? '{'.$this->DRIVER.'}' : '{IBM DB2 ODBC DRIVER}').';';
-
-            if (isset($this->DATABASE)) {
-                $this->dsn .= 'DATABASE='.$this->DATABASE.';';
-            }
-            elseif (!empty($this->database)) {
-                $this->dsn .= 'DATABASE='.$this->database.';';
-            }
-
-            if (isset($this->HOSTNAME)) {
-                $this->dsn .= 'HOSTNAME='.$this->HOSTNAME.';';
-            }
-            else {
-                $this->dsn .= 'HOSTNAME='.(empty($this->hostname) ? '127.0.0.1;' : $this->hostname.';');
-            }
-
-            if (isset($this->PORT)) {
-                $this->dsn .= 'PORT='.$this->port.';';
-            }
-            elseif (!empty($this->port)) {
-                $this->dsn .= ';PORT='.$this->port.';';
-            }
-
-            $this->dsn .= 'PROTOCOL='.(isset($this->PROTOCOL) ? $this->PROTOCOL.';' : 'TCPIP;');
+            empty($this->port) || $this->dsn .= ';port='.$this->port;
+            empty($this->database) || $this->dsn .= ';dbname='.$this->database;
+            empty($this->char_set) || $this->dsn .= ';charset='.$this->char_set;
+        }
+        elseif (!empty($this->char_set) && strpos($this->dsn, 'charset=', 3) === false) {
+            $this->dsn .= ';charset='.$this->char_set;
         }
     }
 
@@ -102,12 +75,11 @@ class DatabasePdoIbm extends \Xylophone\libraries\Database\Pdo\DatabasePdo
      */
     protected function dbListTables($prefix_limit = false)
     {
-        $sql = 'SELECT "tabname" FROM "syscat"."tables"
-            WHERE "type" = \'T\' AND LOWER("tabschema") = '.$this->escape(strtolower($this->database));
+        $sql = 'SELECT '.$this->escapeIdentifiers('TABLE_NAME').' FROM '.$this->escapeIdentifiers('_USER_TABLES');
 
         if ($prefix_limit === true && $this->dbprefix !== '') {
-            $sql .= ' AND "tabname" LIKE \''.$this->escapeLikeStr($this->dbprefix).'%\' '.
-                sprintf($this->like_escape_str, $this->like_escape_chr);
+            $sql .= ' WHERE '.$this->escapeIdentifiers('TABLE_NAME').' LIKE \''.$this->escapeLikeStr($this->dbprefix).
+                '%\' '.sprintf($this->like_escape_str, $this->like_escape_chr);
         }
 
         return $sql;
@@ -123,27 +95,26 @@ class DatabasePdoIbm extends \Xylophone\libraries\Database\Pdo\DatabasePdo
      */
     protected function dbListFields($table = '')
     {
-        return 'SELECT "colname" FROM "syscat"."columns"
-            WHERE LOWER("tabschema") = '.$this->escape(strtolower($this->database)).'
-            AND LOWER("tabname") = '.$this->escape(strtolower($table));
+        return 'SELECT '.$this->escapeIdentifiers('COLUMN_NAME').' FROM '.$this->escapeIdentifiers('_USER_COLUMNS').
+            ' WHERE '.$this->escapeIdentifiers('TABLE_NAME').' = '.$this->escape($table);
     }
 
     /**
-     * Returns an object with field data
+     * Field data query
+     *
+     * Generates a platform-specific query so that the column data can be retrieved
      *
      * @param   string  $table  Table name
      * @return  string  Query string
      */
-    public function fieldData($table = '')
+    public function fieldData($table)
     {
-        $sql = 'SELECT "colname" AS "name", "typename" AS "type", "default" AS "default", "length" AS "max_length",
-            CASE "keyseq" WHEN NULL THEN 0 ELSE 1 END AS "primary_key"
-                FROM "syscat"."columns"
-                WHERE LOWER("tabschema") = '.$this->escape(strtolower($this->database)).'
-                AND LOWER("tabname") = '.$this->escape(strtolower($table)).'
-                ORDER BY "colno"';
+        if ($table === '') {
+            return $this->displayError('db_field_param_missing');
+        }
 
-        return (($query = $this->query($sql)) !== false) ? $query->resultObject() : false;
+        $query = $this->query('SELECT * FROM '.$this->protectIdentifiers($table, true, null, false).' LIMIT 1');
+        return $query->fieldData();
     }
 
     /**
@@ -186,9 +157,7 @@ class DatabasePdoIbm extends \Xylophone\libraries\Database\Pdo\DatabasePdo
      */
     protected function dbLimit($sql)
     {
-        $sql .= ' FETCH FIRST '.($this->qb_limit + $this->qb_offset).' ROWS ONLY';
-
-        return $this->qb_offset ? 'SELECT * FROM ('.$sql.') WHERE rownum > '.$this->qb_offset : $sql;
+        return $sql.' LIMIT '.$this->qb_limit.($this->qb_offset ? ' OFFSET '.$this->qb_offset : '');
     }
 }
 

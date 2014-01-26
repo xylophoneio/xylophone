@@ -1,258 +1,200 @@
 <?php
 /**
- * CodeIgniter
+ * Xylophone
  *
- * An open source application development framework for PHP 5.2.4 or newer
+ * An open source HMVC application development framework for PHP 5.3 or newer
+ * Derived from CodeIgniter, Copyright (c) 2008 - 2013, EllisLab, Inc. (http://ellislab.com/)
  *
  * NOTICE OF LICENSE
  *
  * Licensed under the Open Software License version 3.0
  *
  * This source file is subject to the Open Software License (OSL 3.0) that is
- * bundled with this package in the files license.txt / license.rst.  It is
+ * bundled with this package in the files license.txt / license.rst. It is
  * also available through the world wide web at this URL:
  * http://opensource.org/licenses/OSL-3.0
  * If you did not receive a copy of the license and are unable to obtain it
- * through the world wide web, please send an email to
- * licensing@ellislab.com so we can send you a copy immediately.
+ * through the world wide web, please send an email to licensing@xylophone.io
+ * so we can send you a copy immediately.
  *
- * @package		CodeIgniter
- * @author		EllisLab Dev Team
- * @copyright	Copyright (c) 2008 - 2013, EllisLab, Inc. (http://ellislab.com/)
- * @license		http://opensource.org/licenses/OSL-3.0 Open Software License (OSL 3.0)
- * @link		http://codeigniter.com
- * @since		Version 3.0.0
+ * @package     Xylophone
+ * @author      Xylophone Dev Team, EllisLab Dev Team
+ * @copyright   Copyright (c) 2014, Xylophone Team (http://xylophone.io/)
+ * @license     http://opensource.org/licenses/OSL-3.0 Open Software License (OSL 3.0)
+ * @link        http://xylophone.io
+ * @since       Version 1.0
  * @filesource
  */
+namespace Xylophone\libraries\Database\Pdo\subdrivers;
+
 defined('BASEPATH') OR exit('No direct script access allowed');
 
 /**
- * PDO ODBC Database Adapter Class
+ * PDO ODBC Database Driver Class
  *
- * Note: _DB is an extender class that the app controller
- * creates dynamically based on whether the query builder
- * class is being used or not.
+ * Note: DbBase is an extender class that extends the
+ * Database class, including query builder if configured.
  *
- * @package		CodeIgniter
- * @subpackage	Drivers
- * @category	Database
- * @author		EllisLab Dev Team
- * @link		http://codeigniter.com/user_guide/database/
+ * @package     Xylophone
+ * @subpackage  libraries/Database/Pdo/subdrivers
+ * @link        http://xylophone.io/user_guide/database/
  */
-class CI_DB_pdo_odbc_driver extends CI_DB_pdo_driver {
+class DatabasePdoOdbc extends \Xylophone\libraries\Database\Pdo\DatabasePdo
+{
+    /** @var    string  Database schema */
+    public $schema = 'public';
 
-	/**
-	 * Sub-driver
-	 *
-	 * @var	string
-	 */
-	public $subdriver = 'odbc';
+    /** @var    string  Identifier escape character (must be empty for ODBC) */
+    protected $escape_char = '';
 
-	/**
-	 * Database schema
-	 *
-	 * @var	string
-	 */
-	public $schema = 'public';
+    /** @var    string  ESCAPE statement string */
+    protected $like_escape_str = " {escape '%s'} ";
 
-	// --------------------------------------------------------------------
+    /** @var    array   ORDER BY random keyword */
+    protected $random_keyword = array('RND()', 'RND(%d)');
 
-	/**
-	 * Identifier escape character
-	 *
-	 * Must be empty for ODBC.
-	 *
-	 * @var	string
-	 */
-	protected $_escape_char = '';
+    /**
+     * Initialize Database Settings
+     *
+     * @return  void
+     */
+    public function initialize()
+    {
+        parent::initialize();
 
-	/**
-	 * ESCAPE statement string
-	 *
-	 * @var	string
-	 */
-	protected $_like_escape_str = " {escape '%s'} ";
+        if (empty($this->dsn)) {
+            $this->dsn = 'odbc:';
 
-	/**
-	 * ORDER BY random keyword
-	 *
-	 * @var	array
-	 */
-	protected $_random_keyword = array('RND()', 'RND(%d)');
+            // Pre-defined DSN
+            if (empty($this->hostname) && empty($this->HOSTNAME) && empty($this->port) && empty($this->PORT)) {
+                if (isset($this->DSN)) {
+                    $this->dsn .= 'DSN='.$this->DSN;
+                }
+                elseif (!empty($this->database)) {
+                    $this->dsn .= 'DSN='.$this->database;
+                }
 
-	// --------------------------------------------------------------------
+                return;
+            }
 
-	/**
-	 * Class constructor
-	 *
-	 * Builds the DSN if not already set.
-	 *
-	 * @param	array	$params
-	 * @return	void
-	 */
-	public function __construct($params)
-	{
-		parent::__construct($params);
+            // If the DSN is not pre-configured - try to build an IBM DB2 connection string
+            $this->dsn .= 'DRIVER='.(isset($this->DRIVER) ? '{'.$this->DRIVER.'}' : '{IBM DB2 ODBC DRIVER}').';';
 
-		if (empty($this->dsn))
-		{
-			$this->dsn = 'odbc:';
+            if (isset($this->DATABASE)) {
+                $this->dsn .= 'DATABASE='.$this->DATABASE.';';
+            }
+            elseif (!empty($this->database)) {
+                $this->dsn .= 'DATABASE='.$this->database.';';
+            }
 
-			// Pre-defined DSN
-			if (empty($this->hostname) && empty($this->HOSTNAME) && empty($this->port) && empty($this->PORT))
-			{
-				if (isset($this->DSN))
-				{
-					$this->dsn .= 'DSN='.$this->DSN;
-				}
-				elseif ( ! empty($this->database))
-				{
-					$this->dsn .= 'DSN='.$this->database;
-				}
+            if (isset($this->HOSTNAME)) {
+                $this->dsn .= 'HOSTNAME='.$this->HOSTNAME.';';
+            }
+            else {
+                $this->dsn .= 'HOSTNAME='.(empty($this->hostname) ? '127.0.0.1;' : $this->hostname.';');
+            }
 
-				return;
-			}
+            if (isset($this->PORT)) {
+                $this->dsn .= 'PORT='.$this->port.';';
+            }
+            elseif (!empty($this->port)) {
+                $this->dsn .= ';PORT='.$this->port.';';
+            }
 
-			// If the DSN is not pre-configured - try to build an IBM DB2 connection string
-			$this->dsn .= 'DRIVER='.(isset($this->DRIVER) ? '{'.$this->DRIVER.'}' : '{IBM DB2 ODBC DRIVER}').';';
+            $this->dsn .= 'PROTOCOL='.(isset($this->PROTOCOL) ? $this->PROTOCOL.';' : 'TCPIP;');
+        }
+    }
 
-			if (isset($this->DATABASE))
-			{
-				$this->dsn .= 'DATABASE='.$this->DATABASE.';';
-			}
-			elseif ( ! empty($this->database))
-			{
-				$this->dsn .= 'DATABASE='.$this->database.';';
-			}
+    /**
+     * List database tables
+     *
+     * Generates a platform-specific query string so that the table names can be fetched
+     *
+     * @param   bool    $prefix_limit   Whether to limit by database prefix
+     * @return  string  Table listing
+     */
+    protected function dbListTables($prefix_limit = false)
+    {
+        $sql = 'SELECT table_name FROM information_schema.tables WHERE table_schema = \''.$this->schema.'\'';
 
-			if (isset($this->HOSTNAME))
-			{
-				$this->dsn .= 'HOSTNAME='.$this->HOSTNAME.';';
-			}
-			else
-			{
-				$this->dsn .= 'HOSTNAME='.(empty($this->hostname) ? '127.0.0.1;' : $this->hostname.';');
-			}
+        if ($prefix_limit !== false && $this->dbprefix !== '') {
+            return $sql.' AND table_name LIKE \''.$this->escapeLikeStr($this->dbprefix).'%\' '.
+                sprintf($this->like_escape_str, $this->like_escape_chr);
+        }
 
-			if (isset($this->PORT))
-			{
-				$this->dsn .= 'PORT='.$this->port.';';
-			}
-			elseif ( ! empty($this->port))
-			{
-				$this->dsn .= ';PORT='.$this->port.';';
-			}
+        return $sql;
+    }
 
-			$this->dsn .= 'PROTOCOL='.(isset($this->PROTOCOL) ? $this->PROTOCOL.';' : 'TCPIP;');
-		}
-	}
+    /**
+     * List database table fields
+     *
+     * Generates a platform-specific query string so that the column names can be fetched
+     *
+     * @param   string  $table  Table name
+     * @return  string  Table field listing
+     */
+    protected function dbListFields($table = '')
+    {
+        return 'SELECT column_name FROM information_schema.columns WHERE table_name = '.$this->escape($table);
+    }
 
-	// --------------------------------------------------------------------
+    /**
+     * Update statement
+     *
+     * Generates a platform-specific update string from the supplied data
+     *
+     * @param   string  $table  Table name
+     * @param   array   $values Update data
+     * @return  string  Query string
+     */
+    protected function dbUpdate($table, $values)
+    {
+        $this->qb_limit = false;
+        $this->qb_orderby = array();
+        return parent::dbUpdate($table, $values);
+    }
 
-	/**
-	 * Show table query
-	 *
-	 * Generates a platform-specific query string so that the table names can be fetched
-	 *
-	 * @param	bool	$prefix_limit
-	 * @return	string
-	 */
-	protected function _list_tables($prefix_limit = FALSE)
-	{
-		$sql = "SELECT table_name FROM information_schema.tables WHERE table_schema = '".$this->schema."'";
+    /**
+     * Truncate statement
+     *
+     * Generates a platform-specific truncate string from the supplied data
+     *
+     * If the database does not support the TRUNCATE statement,
+     * then this method maps to 'DELETE FROM table'
+     *
+     * @param   string  $table  Table name
+     * @return  string  TRUNCATE string
+     */
+    protected function dbTruncate($table)
+    {
+        return 'DELETE FROM '.$table;
+    }
 
-		if ($prefix_limit !== FALSE && $this->dbprefix !== '')
-		{
-			return $sql." AND table_name LIKE '".$this->escape_like_str($this->dbprefix)."%' "
-				.sprintf($this->_like_escape_str, $this->_like_escape_chr);
-		}
+    /**
+     * Delete statement
+     *
+     * Generates a platform-specific delete string from the supplied data
+     *
+     * @param   string  $table  Table name
+     * @return  string  DELETE string
+     */
+    protected function dbDelete($table)
+    {
+        $this->qb_limit = false;
+        return parent::dbDelete($table);
+    }
 
-		return $sql;
-	}
-
-	// --------------------------------------------------------------------
-
-	/**
-	 * Show column query
-	 *
-	 * Generates a platform-specific query string so that the column names can be fetched
-	 *
-	 * @param	string	$table
-	 * @return	string
-	 */
-	protected function _list_columns($table = '')
-	{
-		return 'SELECT column_name FROM information_schema.columns WHERE table_name = '.$this->escape($table);
-	}
-
-	// --------------------------------------------------------------------
-
-	/**
-	 * Update statement
-	 *
-	 * Generates a platform-specific update string from the supplied data
-	 *
-	 * @param	string	$table
-	 * @param	array	$values
-	 * @return	string
-	 */
-	protected function _update($table, $values)
-	{
-		$this->qb_limit = FALSE;
-		$this->qb_orderby = array();
-		return parent::_update($table, $values);
-	}
-
-	// --------------------------------------------------------------------
-
-	/**
-	 * Truncate statement
-	 *
-	 * Generates a platform-specific truncate string from the supplied data
-	 *
-	 * If the database does not support the TRUNCATE statement,
-	 * then this method maps to 'DELETE FROM table'
-	 *
-	 * @param	string	$table
-	 * @return	string
-	 */
-	protected function _truncate($table)
-	{
-		return 'DELETE FROM '.$table;
-	}
-
-	// --------------------------------------------------------------------
-
-	/**
-	 * Delete statement
-	 *
-	 * Generates a platform-specific delete string from the supplied data
-	 *
-	 * @param	string	the table name
-	 * @return	string
-	 */
-	protected function _delete($table)
-	{
-		$this->qb_limit = FALSE;
-		return parent::_delete($table);
-	}
-
-	// --------------------------------------------------------------------
-
-	/**
-	 * LIMIT
-	 *
-	 * Generates a platform-specific LIMIT clause
-	 *
-	 * @param	string	$sql	SQL Query
-	 * @return	string
-	 */
-	protected function _limit($sql)
-	{
-		return preg_replace('/(^\SELECT (DISTINCT)?)/i','\\1 TOP '.$this->qb_limit.' ', $sql);
-	}
-
+    /**
+     * LIMIT
+     *
+     * Generates a platform-specific LIMIT clause
+     *
+     * @param   string  $sql    Query string
+     * @return  string  Query string with LIMIT clause
+     */
+    protected function dbLimit($sql)
+    {
+        return preg_replace('/(^\SELECT (DISTINCT)?)/i','\\1 TOP '.$this->qb_limit.' ', $sql);
+    }
 }
 
-/* End of file pdo_odbc_driver.php */
-/* Location: ./system/database/drivers/pdo/subdrivers/pdo_odbc_driver.php */
