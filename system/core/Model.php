@@ -43,15 +43,28 @@ class Model {
     /** @var    object  The Xylophone framework singleton */
     public $XY;
 
+    /** @var    array   Config params */
+    public $config;
+
     /**
      * Constructor
      *
+     * @param   array   $config     Config params
      * @return  void
      */
-    public function __construct()
+    public function __construct($config = array())
     {
         global $XY;
+
+        // Set the XY object
         $this->XY = $XY;
+
+        // Save config
+        is_array($config) || $config = array($config);
+        $this->config =& $config;
+
+        // Set db if provided
+        isset($config['db']) && is_object($config['db']) && $this->db = $config['db'];
     }
 
     /**

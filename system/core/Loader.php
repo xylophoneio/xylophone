@@ -119,8 +119,8 @@ class Loader
      * @uses    Loader::loadResource()
      *
      * @param   string|array    $library    Library name or array of names w/ optional object name keys
-     * @param   array           $params     Optional parameters to pass to the library class constructor
-     * @param   string          $obj_name   An optional object name to assign to
+     * @param   array           $params     Optional parameters
+     * @param   string          $obj_name   Optional object name
      * @return  void
      */
     public function library($library = '', $params = null, $obj_name = null)
@@ -161,9 +161,9 @@ class Loader
      * @uses    Loader::loadResource()
      *
      * @param   string|array    $library    Driver name or array of names
-     * @param   array           $params     Optional parameters to pass to the driver
-     * @param   array           $extras     Optional extra parameters to pass to the driver
-     * @param   string          $obj_name   An optional object name to assign to
+     * @param   array           $params     Optional parameters
+     * @param   array           $extras     Optional extra parameters
+     * @param   string          $obj_name   Optional object name
      * @return  object|bool     Object or FALSE on failure if $library is a string
      *                          and $obj_name is set. VOID otherwise.
      */
@@ -286,23 +286,62 @@ class Loader
     /**
      * Load a model
      *
+     * Loads a model and passes in a database connection. The $db arg may be:
+     * - FALSE to use $XY->db if already loaded
+     * - TRUE to use $XY->db, autoloading from config as needed
+     * - A string to use as a database object name, autoloading from config as needed
+     * - An array with 'db' set to an array of database config params to load from
+     * - A previously loaded database object
+     * - An array of parameters for the model, with the 'db' element set to one of the above
+     *
+     * The model will be passed parameters, including 'db' as an object or
+     * FALSE if none was specified and $XY->db is not loaded.
+     * The Xylophone Model base class, if used, will set the 'db' object to
+     * $this->db inside the model.
+     *
      * @param   string  $model      Model name
-     * @param   string  $obj_name   An optional object name to assign to
-     * @param   bool    $db_conn    An optional database connection configuration to initialize
+     * @param   string  $obj_name   Optional object name
+     * @param   mixed   $db         Optional database connection
      * @return  void
      */
-    public function model($model, $obj_name = '', $db_conn = false)
+    public function model($model, $obj_name = '', $db = false)
     {
         global $XY;
 
-        // Check for DB conn
-        if ($db_conn !== false && !isset($XY->db)) {
-            $db_conn === true && $db_conn = null;
-            $this->driver('database', $db_conn, array('query_builder' => true));
+        // Force db to array with 'db' element
+        is_array($db) || $db = array('db' => $db);
+        isset($db['db']) || $db['db'] = false;
+
+        // Check for database object
+        if (!is_object($db['db'])) {
+            // What do we need to use?
+            if (is_bool($db['db']) && isset($XY->db)) {
+                // Use loaded db
+                $db['db'] = $XY->db;
+            }
+            else if ($db['db'] === true) {
+                // Autoload default db from config
+                $this->driver('database');
+                $db['db'] = $XY->db;
+            }
+            else if (is_string($db['db'])) {
+                // Use object name if loaded, autoload if needed
+                $name = $db['db'];
+                isset($XY->$name) || $this->driver('database', null, null, $name);
+                $db['db'] = $XY->$name;
+            }
+            else {
+                // Autoload db with params as 'model' group
+                $name = $obj_name ? $obj_name.'_db' : $model.'_db';
+                $params = array('model' => $db['db']);
+                $extras = array('active_group' => 'model', 'query_builder' => true);
+                $this->driver('database', $params, $extras, $name);
+                $db['db'] = $XY->$name;
+            }
         }
 
         // Load model resource(s)
-        $this->loadResource($model, 'models', $obj_name);
+        $this->loadResource($model, 'models', $obj_name, $db);
     }
 
     /**
@@ -512,7 +551,7 @@ class Loader
      * @param   string|array    $resource   Resource name or array of names with optional object name keys
      * @param   string          $type       Resource type
      * @param   string          $obj_name   Optional object name
-     * @param   array           $params     Optional resource constructor parameters
+     * @param   array           $params     Optional parameters
      * @param   bool|array      $config     Load configuration flag or array of config params
      * @return  void
      */
