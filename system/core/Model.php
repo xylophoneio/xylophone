@@ -1,69 +1,73 @@
 <?php
 /**
- * CodeIgniter
+ * Xylophone
  *
- * An open source application development framework for PHP 5.2.4 or newer
+ * An open source HMVC application development framework for PHP 5.3 or newer
+ * Derived from CodeIgniter, Copyright (c) 2008 - 2013, EllisLab, Inc. (http://ellislab.com/)
  *
  * NOTICE OF LICENSE
  *
  * Licensed under the Open Software License version 3.0
  *
  * This source file is subject to the Open Software License (OSL 3.0) that is
- * bundled with this package in the files license.txt / license.rst.  It is
+ * bundled with this package in the files license.txt / license.rst. It is
  * also available through the world wide web at this URL:
  * http://opensource.org/licenses/OSL-3.0
  * If you did not receive a copy of the license and are unable to obtain it
- * through the world wide web, please send an email to
- * licensing@ellislab.com so we can send you a copy immediately.
+ * through the world wide web, please send an email to licensing@xylophone.io
+ * so we can send you a copy immediately.
  *
- * @package		CodeIgniter
- * @author		EllisLab Dev Team
- * @copyright	Copyright (c) 2008 - 2013, EllisLab, Inc. (http://ellislab.com/)
- * @license		http://opensource.org/licenses/OSL-3.0 Open Software License (OSL 3.0)
- * @link		http://codeigniter.com
- * @since		Version 1.0
+ * @package     Xylophone
+ * @author      Xylophone Dev Team, EllisLab Dev Team
+ * @copyright   Copyright (c) 2014, Xylophone Team (http://xylophone.io/)
+ * @license     http://opensource.org/licenses/OSL-3.0 Open Software License (OSL 3.0)
+ * @link        http://xylophone.io
+ * @since       Version 1.0
  * @filesource
  */
+namespace Xylophone\core;
+
 defined('BASEPATH') OR exit('No direct script access allowed');
 
 /**
- * Model Class
+ * Application Model Base Class
  *
- * @package		CodeIgniter
- * @subpackage	Libraries
- * @category	Libraries
- * @author		EllisLab Dev Team
- * @link		http://codeigniter.com/user_guide/libraries/config.html
+ * This is the intended base class for all application models.
+ * It provides a local reference to the global $XY framework object.
+ *
+ * @package     Xylophone
+ * @subpackage  core
+ * @link        http://xylophone.io/user_guide/general/models.html
  */
-class CI_Model {
+class Model {
+    /** @var    object  The Xylophone framework singleton */
+    public $XY;
 
-	/**
-	 * Class constructor
-	 *
-	 * @return	void
-	 */
-	public function __construct()
-	{
-		log_message('debug', 'Model Class Initialized');
-	}
+    /**
+     * Constructor
+     *
+     * @return  void
+     */
+    public function __construct()
+    {
+        global $XY;
+        $this->XY = $XY;
+    }
 
-	// --------------------------------------------------------------------
-
-	/**
-	 * __get magic
-	 *
-	 * Allows models to access CI's loaded classes using the same
-	 * syntax as controllers.
-	 *
-	 * @param	string	$key
-	 */
-	public function __get($key)
-	{
-		$CI =& get_instance();
-		return $CI->$key;
-	}
-
+    /**
+     * Get Magic Method
+     *
+     * Gives access to members of the global $XY object as if they were members
+     * of this controller. Throwback to old non-HMVC CI days.
+     *
+     * @param   string  $key    Member name
+     * @return  mixed   Global $XY member
+     */
+    public function __get($key)
+    {
+        if (isset($this->XY->$key)) {
+            return $this->XY->$key;
+        }
+    }
 }
 
-/* End of file Model.php */
-/* Location: ./system/core/Model.php */
