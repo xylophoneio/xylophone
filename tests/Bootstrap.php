@@ -35,8 +35,8 @@ define('TESTPATH', __DIR__.'/');
 define('BASEPATH', realpath(__DIR__.'/../').'/');
 
 // Get vfsStream from includes (PEAR, composer) or vendor dir
-echo "Requiring vfsStream\n";
-@require_once 'vfsStream/vfsStream.php';
+echo "Checking for global vfsStream\n";
+@include_once 'vfsStream/vfsStream.php';
 if (!class_exists('vfsStream') && file_exists(BASEPATH.'vendor/autoload.php')) {
     echo "Including vendor vfsStream\n";
 	include_once BASEPATH.'vendor/autoload.php';
