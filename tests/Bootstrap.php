@@ -35,22 +35,17 @@ define('TESTPATH', __DIR__.'/');
 define('BASEPATH', realpath(__DIR__.'/../').'/');
 
 // Get vfsStream from includes (PEAR, composer) or vendor dir
-echo "Checking for global vfsStream\n";
 @include_once 'vfsStream/vfsStream.php';
 if (!class_exists('vfsStream') && file_exists(BASEPATH.'vendor/autoload.php')) {
-    echo "Including vendor vfsStream\n";
 	include_once BASEPATH.'vendor/autoload.php';
 	class_alias('org\bovigo\vfs\vfsStream', 'vfsStream');
 	class_alias('org\bovigo\vfs\vfsStreamDirectory', 'vfsStreamDirectory');
 	class_alias('org\bovigo\vfs\vfsStreamWrapper', 'vfsStreamWrapper');
 }
-echo "vfsStream loaded\n";
 
 // Set localhost "remote" IP
 isset($_SERVER['REMOTE_ADDR']) OR $_SERVER['REMOTE_ADDR'] = '127.0.0.1';
 
 // Load our custom test case
 include_once TESTPATH.'Mocks/XyTestCase.php';
-
-echo "Bootstrap finished\n";
 
