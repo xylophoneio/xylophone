@@ -38,7 +38,7 @@
  *
  * NOTE: If you use a custom value, see the error reporting code below.
  */
-$environment = isset($_SERVER['XY_ENV']) ? $_SERVER['XY_ENV'] : 'development');
+$environment = isset($_SERVER['XY_ENV']) ? $_SERVER['XY_ENV'] : 'development';
 
 /*---------------------------------------------------------------
  * ERROR REPORTING
