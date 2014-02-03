@@ -40,7 +40,7 @@ defined('BASEPATH') OR exit('No direct script access allowed');
  * @package     Xylophone
  * @subpackage  core
  */
-class AutoloadException extends Exception { }
+class AutoloadException extends \Exception { }
 
 /**
  * Xylophone Framework Class
@@ -148,7 +148,7 @@ class Xylophone
                 // Since we don't have autoloader yet, we have to manually
                 // search and include source files
                 $app = true;
-                $file = DIRECTORY_SEPARATOR.'core'.DIRECTORY_SEPARATOR.'Xylophone.php';
+                $file = 'core'.DIRECTORY_SEPARATOR.'Xylophone.php';
                 foreach ($init['ns_paths'] as $ns => &$path) {
                     // Check namespaces after application
                     if (!$app && !$ns) {
@@ -181,9 +181,9 @@ class Xylophone
                     }
 
                     // Try to include the file
-                    if (@include($path.$file)) {
+                    if (@include_once($path.$file)) {
                         // Found one - use first as namespace, appending sub-namespace if not global
-                        $namespace !== null || $namespace = $ns ? $ns.'\core\\' : $ns;
+                        $namespace === null && $namespace = $ns ? $ns.'\core\\' : $ns;
                     }
 
                     // No longer the application path
@@ -213,10 +213,6 @@ class Xylophone
      */
     public function initialize($init)
     {
-        // Define custom error and shutdown handlers so we can log PHP errors
-        set_error_handler(array($this, 'exceptionHandler'));
-        register_shutdown_function(array($this, 'shutdownHandler'));
-
         // Kill magic quotes for older versions
         $this->isPhp('5.4') || @ini_set('magic_quotes_runtime', 0);
 
@@ -225,7 +221,7 @@ class Xylophone
 
         // Set base and system paths and resolve bases with trailing slashes
         // These should all have been cleaned in instance()
-        $this->base_path = getcwd().DIRECTORY_SEPARATOR;
+        $this->base_path = BASEPATH;
         $this->system_path = isset($init['system_path']) ? $init['system_path'] :
             dirname(dirname(__FILE__)).DIRECTORY_SEPARATOR;
         $this->resolve_bases = isset($init['resolve_bases']) ? $init['resolve_bases'] : array('');
@@ -236,9 +232,10 @@ class Xylophone
             $this->ns_paths = $init['ns_paths'];
 
             // Identify config paths
+            $this->config_paths = array();
             foreach ($this->ns_paths as $path) {
                 // Check for config folder
-                !is_dir($path.'config') || $this->config_paths[] = $path;
+                is_dir($path.'config') && $this->config_paths[] = $path;
             }
 
             // Reverse config order so higher-priority items override lower ones in merge
@@ -257,6 +254,7 @@ class Xylophone
         $this->app_path =& $this->ns_paths[$this->app_ns];
 
         // Set view paths
+        $this->view_paths = array();
         isset($init['view_paths']) || $init['view_paths'] = array('');
         $this->addViewPath($init['view_paths']);
 
@@ -264,8 +262,8 @@ class Xylophone
         isset($init['override_core']) && $this->override_core = $init['override_core'];
         isset($init['library_search']) && $this->library_search = $init['library_search'];
 
-        // Register autoloader
-        spl_autoload_register(array($this, 'autoloader'));
+        // Register handlers
+        $this->registerHandlers();
     }
 
     /**
@@ -299,9 +297,9 @@ class Xylophone
         $this->output = $this->loadClass('Output', 'core');
 
         // Auto-load namespaces, view paths, config files
-        !isset($autoload['namespaces']) || $this->addNamespace($autoload['namespaces']);
-        !isset($autoload['view_paths']) || $this->addViewPath($autoload['view_paths']);
-        !isset($autoload['config']) || $this->config->load($autoload['config']);
+        isset($autoload['namespaces']) && $this->addNamespace($autoload['namespaces']);
+        isset($autoload['view_paths']) && $this->addViewPath($autoload['view_paths']);
+        isset($autoload['config']) && $this->config->load($autoload['config']);
 
         // Load mime types
         $mimes = $this->config->get('mimes.php', 'mimes');
@@ -316,9 +314,9 @@ class Xylophone
         $this->utf8 = $this->loadClass('Utf8', 'core');
         $this->uri = $this->loadClass('URI', 'core');
         $this->router = $this->loadClass('Router', 'core');
-        !isset($routing['directory']) || $this->router->route['path'] = $routing['directory'];
-        !isset($routing['controller']) || $this->router->route['class'] = $routing['controller'];
-        !isset($routing['function']) || $this->router->route['method'] = $routing['function'];
+        isset($routing['directory']) && $this->router->route['path'] = $routing['directory'];
+        isset($routing['controller']) && $this->router->route['class'] = $routing['controller'];
+        isset($routing['function']) && $this->router->route['method'] = $routing['function'];
 
         // Check cache_override hook and cache display to see if we're done
         if ($this->hooks->callHook('cache_override') === false && $this->output->displayCache() === true) {
@@ -333,10 +331,10 @@ class Xylophone
         $benchmark && $this->benchmark->mark('loading_time:_base_classes_end');
 
         // Load remaining autoload resources
-        !isset($autoload['language']) || $this->lang->load($autoload['language']);
-        !isset($autoload['drivers']) || $this->load->driver($autoload['drivers']);
-        !isset($autoload['libraries']) || $this->load->library($autoload['libraries']);
-        !isset($autoload['model']) || $this->load->model($autoload['model']);
+        isset($autoload['language']) && $this->lang->load($autoload['language']);
+        isset($autoload['drivers']) && $this->load->driver($autoload['drivers']);
+        isset($autoload['libraries']) && $this->load->library($autoload['libraries']);
+        isset($autoload['model']) && $this->load->model($autoload['model']);
 
         // Call pre_controller and mark controller start point
         $this->hooks->callHook('pre_controller');
@@ -499,48 +497,6 @@ class Xylophone
     }
 
     /**
-     * SPL Class Autoloader
-     *
-     * The autoloader, registered in initialize(), includes a class source file
-     * based on the namespace and a path hint if the global namespace is used.
-     *
-     * @throws  AutloadException
-     *
-     * @param   string  $class  Class name with full namespace
-     * @return  void
-     */
-    public function autoloader($class)
-    {
-        // Break out namespace and class
-        $parts = explode('\\', $class);
-
-        // Get filename from class
-        $file = ucfirst(array_pop($parts)).'.php';
-
-        // Get top-level namespace or assume global
-        $tln = count($parts) ? array_shift($parts) : '';
-
-        // Translate top-level namespace
-        if (isset($this->ns_paths[$tln])) {
-            $path = $this->ns_paths[$tln];
-
-            // Append sub-namespaces or hint as subdirectories
-            $path .= (count($parts) ?
-                implode(DIRECTORY_SEPARATOR, $parts) :
-                str_replace('/', DIRECTORY_SEPARATOR, $this->loader_hint)
-                ).DIRECTORY_SEPARATOR
-
-            // Include file
-            if (!@include($path.$file)) {
-                return;
-            }
-        }
-
-        // File not found - throw exception
-        throw new AutoloadException('Could not find class "'.$class.'"');
-    }
-
-    /**
      * Add a namespace path
      *
      * Registers a class namespace with its base path for autoloader searching.
@@ -566,9 +522,9 @@ class Xylophone
                 // Check against base
                 if (is_dir($base.$path)) {
                     // Add to namespaces and continue to next
-                    $ns_path = realpath($base.$path).DIRECTORY_SEPARATOR;
+                    $ns_path = $this->realpath($base.$path).DIRECTORY_SEPARATOR;
                     $this->ns_paths[$ns] = $ns_path;
-                    !is_dir($ns_path.'config') || array_unshift($this->config_paths, $ns_path);
+                    is_dir($ns_path.'config') && array_unshift($this->config_paths, $ns_path);
                     continue 2;
                 }
             }
@@ -592,7 +548,7 @@ class Xylophone
     public function removeNamespace($namespace)
     {
         // Just unset namespace
-        unset($this->ns_paths[$namespace];
+        unset($this->ns_paths[$namespace]);
     }
 
     /**
@@ -619,7 +575,7 @@ class Xylophone
                 // Check against base
                 if (is_dir($base.$vw_path)) {
                     // Add to paths and continue to next
-                    $vw_path = realpath($base.$vw_path).DIRECTORY_SEPARATOR;
+                    $vw_path = $this->realpath($base.$vw_path).DIRECTORY_SEPARATOR;
                     $this->view_paths[$path] = $vw_path;
                     continue 2;
                 }
@@ -642,7 +598,7 @@ class Xylophone
     public function removeViewPath($view_path)
     {
         // Just unset view path
-        unset($this->view_paths[$view_path];
+        unset($this->view_paths[$view_path]);
     }
 
     /**
@@ -658,7 +614,7 @@ class Xylophone
         // Convert to string, get result if necessary, and return result
         $ver = (string)$ver;
         isset($this->is_php[$ver]) || $this->is_php[$ver] = (version_compare(PHP_VERSION, $ver) >= 0);
-        return $this->is_php[$version];
+        return $this->is_php[$ver];
     }
 
     /**
@@ -828,6 +784,48 @@ class Xylophone
     }
 
     /**
+     * SPL Class Autoloader
+     *
+     * The autoloader, registered in initialize(), includes a class source file
+     * based on the namespace and a path hint if the global namespace is used.
+     *
+     * @throws  AutloadException
+     *
+     * @param   string  $class  Class name with full namespace
+     * @return  void
+     */
+    public function autoloader($class)
+    {
+        // Break out namespace and class
+        $parts = explode('\\', $class);
+
+        // Get filename from class
+        $file = ucfirst(array_pop($parts)).'.php';
+
+        // Get top-level namespace or assume global
+        $tln = count($parts) ? array_shift($parts) : '';
+
+        // Translate top-level namespace
+        if (isset($this->ns_paths[$tln])) {
+            $path = $this->ns_paths[$tln];
+
+            // Append sub-namespaces or hint as subdirectories
+            $path .= (count($parts) ?
+                implode(DIRECTORY_SEPARATOR, $parts) :
+                str_replace('/', DIRECTORY_SEPARATOR, $this->loader_hint)
+                ).DIRECTORY_SEPARATOR;
+
+            // Include file
+            if (!@include($path.$file)) {
+                return;
+            }
+        }
+
+        // File not found - throw exception
+        throw new AutoloadException('Could not find class "'.$class.'"');
+    }
+
+    /**
      * Exception Handler
      *
      * This is the custom exception handler that is registered in initialize().
@@ -878,6 +876,37 @@ class Xylophone
         ($last['type'] & (E_ERROR|E_PARSE|E_CORE_ERROR|E_CORE_WARNING|E_COMPILE_ERROR|E_COMPILE_WARNING))) {
             $this->exceptionHandler($last['type'], $last['message'], $last['file'], $last['line']);
         }
+    }
+
+    /**
+     * Register autoloader, error, and shutdown handlers
+     *
+     * This method allows us to bypass registration during testing.
+     *
+     * @return  void
+     */
+    protected function registerHandlers()
+    {
+        // Register custom error and shutdown handlers so we can log PHP errors
+        set_error_handler(array($this, 'exceptionHandler'));
+        register_shutdown_function(array($this, 'shutdownHandler'));
+
+        // Register our autoloader
+        spl_autoload_register(array($this, 'autoloader'));
+    }
+
+    /**
+     * Get real path
+     *
+     * This abstraction of the realpath call allows overriding for unit testing
+     *
+     * @param   string  $path   Path to resolve
+     * @return  string  Real path
+     */
+    protected function realpath($path)
+    {
+        // Normally, we just call realpath()
+        return realpath($path);
     }
 }
 
