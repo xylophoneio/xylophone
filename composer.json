@@ -1,8 +1,8 @@
 {
-	"description" : "Dependencies for CodeIgniter's testing environment",
-	"name" : "ellislab/codeigniter",
+	"description" : "Dependencies for Xylophone's testing environment",
+	"name" : "xylophoneio/xylophone",
 	"require": {
-		"php": ">=5.2.4"
+		"php": ">=5.3.0"
 	},
 	"require-dev": {
 		"mikey179/vfsStream": "1.1.*"
