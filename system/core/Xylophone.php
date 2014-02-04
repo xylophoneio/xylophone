@@ -26,6 +26,7 @@
  * @filesource
  */
 namespace Xylophone\core;
+use \RuntimeException;
 
 defined('BASEPATH') OR exit('No direct script access allowed');
 
@@ -39,6 +40,7 @@ defined('BASEPATH') OR exit('No direct script access allowed');
  *
  * @package     Xylophone
  * @subpackage  core
+ * @codeCoverageIgnore
  */
 class AutoloadException extends \Exception { }
 
@@ -154,10 +156,11 @@ class Xylophone
                     if (!$app && !$ns) {
                         // Fail out
                         header('HTTP/1.1 503 Service Unavailable.', true, 503);
-                        echo 'The global namespace is reserved for application classes. ';
-                        echo 'Please specify a namespace for your additional path in the following file: '.
+                        $msg = 'The global namespace is reserved for application classes. '.
+                            'Please specify a namespace for your additional path in the following file: '.
                             basename($_SERVER['PHP_SELF']);
-                        exit(EXIT_CONFIG);
+                        echo $msg;
+                        throw new RuntimeException($msg);
                     }
 
                     // Resolve the path
@@ -174,10 +177,11 @@ class Xylophone
                     if (!$resolved) {
                         // Fail out
                         header('HTTP/1.1 503 Service Unavailable.', true, 503);
-                        echo ($app ? 'Your application folder path does not appear to be set correctly.' :
+                        $msg = ($app ? 'Your application folder path does not appear to be set correctly.' :
                             'The "'.$ns.'" namespace path does not appear to be set correctly.').
                             ' Please fix it in the following file: '.basename($_SERVER['PHP_SELF']);
-                        exit(EXIT_CONFIG);
+                        echo $msg;
+                        throw new RuntimeException($msg);
                     }
 
                     // Try to include the file
@@ -221,7 +225,7 @@ class Xylophone
 
         // Set base and system paths and resolve bases with trailing slashes
         // These should all have been cleaned in instance()
-        $this->base_path = BASEPATH;
+        $this->base_path = isset($init['base_path']) ? $init['base_path'] : BASEPATH;
         $this->system_path = isset($init['system_path']) ? $init['system_path'] :
             dirname(dirname(__FILE__)).DIRECTORY_SEPARATOR;
         $this->resolve_bases = isset($init['resolve_bases']) ? $init['resolve_bases'] : array('');

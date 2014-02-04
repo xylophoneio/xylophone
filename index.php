@@ -229,6 +229,7 @@ $XY = Xylophone\core\Xylophone::instance(array(
     'environment' => $environment,
     'ns_paths' => array_merge(array($application_namespace => $application_folder), $namespace_paths),
     'view_paths' => array($view_folder),
+    'base_path' => BASEPATH.DIRECTORY_SEPARATOR,
     'system_path' => $system_path,
     'resolve_bases' => $resolve_bases,
     'override_core' => $override_core,
