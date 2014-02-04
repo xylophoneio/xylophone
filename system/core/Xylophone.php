@@ -155,7 +155,7 @@ class Xylophone
                     // Check namespaces after application
                     if (!$app && !$ns) {
                         // Fail out
-                        header('HTTP/1.1 503 Service Unavailable.', true, 503);
+                        static::header('HTTP/1.1 503 Service Unavailable.', true, 503);
                         $msg = 'The global namespace is reserved for application classes. '.
                             'Please specify a namespace for your additional path in the following file: '.
                             basename($_SERVER['PHP_SELF']);
@@ -176,7 +176,7 @@ class Xylophone
                     }
                     if (!$resolved) {
                         // Fail out
-                        header('HTTP/1.1 503 Service Unavailable.', true, 503);
+                        static::header('HTTP/1.1 503 Service Unavailable.', true, 503);
                         $msg = ($app ? 'Your application folder path does not appear to be set correctly.' :
                             'The "'.$ns.'" namespace path does not appear to be set correctly.').
                             ' Please fix it in the following file: '.basename($_SERVER['PHP_SELF']);
@@ -911,6 +911,22 @@ class Xylophone
     {
         // Normally, we just call realpath()
         return realpath($path);
+    }
+
+    /**
+     * Send a raw HTTP header
+     *
+     * This abstraction of the header call allows overriding for unit testing
+     *
+     * @param   string  $string     Header string
+     * @param   bool    $replace    Whether to replace matching header
+     * @param   int     $code       HTTP response code
+     * @return  void
+     */
+    protected static function header($string, $replace, $code)
+    {
+        // Normally, we just call header()
+        header($string, $replace, $code);
     }
 }
 
