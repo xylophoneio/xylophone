@@ -29,10 +29,30 @@
 /**
  * Xylophone Unit Test
  *
+ * Sets up a virtual filesystem as follows:
+ *  root
+ *  |- xylophone        (base_path)
+ *  | |- system         (system_path)
+ *  | \- application    (app_path)
+ *  |   |- config
+ *  |   \- views
+ *  |
+ *  \- usr
+ *    \- share
+ *      \- php
+ *        \- xylophone
+ *          |- config
+ *          \- sharedviews
+ *
+ * For testing the Xylophone framework singleton and its base services.
+ *
  * @package     Xylophone
  */
 class XylophoneTest extends XyTestCase
 {
+    /** @var    string  Include directory root */
+    private $inc_root;
+
     /** @var    string  Include directory path */
     private $inc_path;
 
@@ -65,8 +85,9 @@ class XylophoneTest extends XyTestCase
 
         // Create an include dir with a shared module subdir
         $incdir = 'usr/share/php/';
+        $this->inc_root = $this->vfsMkdir($incdir);
         $this->share_dir = 'xylophone/';
-        $this->share_root = $this->vfsMkdir($incdir.$this->share_dir);
+        $this->share_root = $this->vfsMkdir($this->share_dir, $this->inc_root);
 
         // Make shared config and view subdirs
         $this->vfsMkdir('config', $this->share_root);
@@ -88,6 +109,47 @@ class XylophoneTest extends XyTestCase
     {
         // Make sure __construct is not callable
         $this->assertFalse(is_callable(array('Xylophone\core\Xylophone', '__construct')));
+    }
+
+    /**
+     * Test instance() with a bad application path
+     */
+    public function testInstanceAppFail()
+    {
+        // Call instance with a bad app path
+        $init = array('environment' => 'testing', 'ns_paths' => array('' => 'badpath/'));
+        $this->setExpectedException('RuntimeException');
+        $this->expectOutputString('Your application folder path does not appear to be set correctly.'.
+            ' Please fix it in the following file: '.basename($_SERVER['PHP_SELF']));
+        $XY = Mocks\core\Xylophone::instance($init);
+    }
+
+    /**
+     * Test instance() with a bad namespace
+     */
+    public function testInstanceNsFail()
+    {
+        // Call instance with a bad (missing) namespace
+        $init = array('environment' => 'production', 'ns_paths' => array('' => $this->vfs_app_path, 'badpath/'));
+        $this->setExpectedException('RuntimeException');
+        $this->expectOutputString('The global namespace is reserved for application classes. '.
+            'Please specify a namespace for your additional path in the following file: '.
+            basename($_SERVER['PHP_SELF']));
+        $XY = Mocks\core\Xylophone::instance($init);
+    }
+
+    /**
+     * Test instance() with a bad namespace path
+     */
+    public function testInstanceNsPathFail()
+    {
+        // Call instance with a bad ns path
+        $ns = 'BadSpace';
+        $init = array('environment' => 'production', 'ns_paths' => array('' => $this->vfs_app_path, $ns => 'badpath/'));
+        $this->setExpectedException('RuntimeException');
+        $this->expectOutputString('The "'.$ns.'" namespace path does not appear to be set correctly.'.
+            ' Please fix it in the following file: '.basename($_SERVER['PHP_SELF']));
+        $XY = Mocks\core\Xylophone::instance($init);
     }
 
     /**
@@ -158,6 +220,7 @@ class XylophoneTest extends XyTestCase
     {
         // Set up test parameter vars
         $env = 'development';
+        $basedir = $this->vfs_base_path.'/';
         $sysdir = $this->vfs_sys_path.'/';
         $appdir = $this->vfs_app_path.'/';
         $appns = '';
@@ -167,6 +230,7 @@ class XylophoneTest extends XyTestCase
         // Call initialize with parameters
         $init = array(
             'environment' => $env,
+            'base_path' => $basedir,
             'system_path' => $sysdir,
             'resolve_bases' => array('', $this->inc_path),
             'ns_paths' => $nspath,
@@ -176,8 +240,9 @@ class XylophoneTest extends XyTestCase
         );
         $XY->initialize($init);
 
-        // Check environment and system paths
+        // Check environment, and base and system paths
         $this->assertEquals($env, $XY->environment);
+        $this->assertEquals($basedir, $XY->base_path);
         $this->assertEquals($sysdir, $XY->system_path);
 
         // Check namespace and app paths
@@ -210,6 +275,55 @@ class XylophoneTest extends XyTestCase
         // Check for global namespace add failure
         $this->assertArrayHasKey('', $XY->ns_paths);
         $this->assertFalse($XY->addNamespace('', 'some/path'));
+    }
+
+    /**
+     * Test adding a bad namespace path
+     *
+     * @depends testInitialize
+     */
+    public function testAddBadNamespace($XY)
+    {
+        // Check for bad namespace add failure
+        $this->assertFalse($XY->addNamespace('NoSpace', 'some/path'));
+    }
+
+    /**
+     * Test adding a namespace path
+     *
+     * @depends testInitialize
+     * @return  object  Mock Xylophone instance
+     */
+    public function testAddNamespace($XY)
+    {
+        // Add a path in includes
+        $ns = 'OtherSpace';
+        $dir = 'xyothers/';
+        $this->vfsMkdir($dir, $this->inc_root);
+
+        // Check for namespace add
+        $this->assertTrue($XY->addNamespace($ns, $dir));
+        $this->assertArrayHasKey($ns, $XY->ns_paths);
+        $this->assertEquals($this->inc_path.$dir, $XY->ns_paths[$ns]);
+
+        // Return instance for namespace removal
+        return $XY;
+    }
+
+    /**
+     * Test removing a namespace path
+     *
+     * @depends testAddNamespace
+     */
+    public function testRemoveNamespace($XY)
+    {
+        // Get last namespace
+        end($XY->ns_paths);
+        $ns = key($XY->ns_paths);
+
+        // Check for namespace removal
+        $XY->removeNamespace($ns);
+        $this->assertArrayNotHasKey($ns, $XY->ns_paths);
     }
 }
 

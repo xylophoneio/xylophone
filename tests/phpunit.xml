@@ -15,10 +15,8 @@
 		</testsuite>
 	</testsuites>
 	<filter>
-		<blacklist>
-			<directory suffix=".php">PEAR_INSTALL_DIR</directory>
-			<directory suffix=".php">PHP_LIBDIR</directory>
-			<directory suffix=".php">../vendor</directory>
-		</blacklist>
+        <whitelist addUncoveredFilesFromWhitelist="false">
+            <directory suffix=".php">../system</directory>
+        </whitelist>
 	</filter>
 </phpunit>
