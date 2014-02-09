@@ -861,7 +861,6 @@ class Xylophone
                 str_replace('/', DIRECTORY_SEPARATOR, $this->loader_hint)).DIRECTORY_SEPARATOR;
 
             // Include file
-            error_log('Including '.$path.$file);
             if (@include($path.$file)) {
                 return;
             }
