@@ -46,6 +46,9 @@ class Xylophone extends \Xylophone\core\Xylophone
     /** @var    array   PHP version comparison results (made public) */
     public $is_php = array();
 
+    /** @var    string  Autoloader hint */
+    public $loader_hint = '';
+
     /**
      * Initialize framework
      *
@@ -85,21 +88,6 @@ class Xylophone extends \Xylophone\core\Xylophone
     {
         // Just trim trailing slash since realpath() fails on VFS urls
         return rtrim($path, '\/');
-    }
-
-    /**
-     * Send a raw HTTP header
-     *
-     * This abstraction of the header call allows overriding for unit testing
-     *
-     * @param   string  $string     Header string
-     * @param   bool    $replace    Whether to replace matching header
-     * @param   int     $code       HTTP response code
-     * @return  void
-     */
-    protected static function header($string, $replace, $code)
-    {
-        // Nothing to do here since headers cause errors in test
     }
 }
 

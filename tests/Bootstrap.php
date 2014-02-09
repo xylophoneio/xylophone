@@ -34,18 +34,39 @@ error_reporting(E_ALL | E_STRICT);
 define('TESTPATH', __DIR__.'/');
 define('BASEPATH', realpath(__DIR__.'/../').'/');
 
-// Get vfsStream from includes (PEAR, composer) or vendor dir
-@include_once 'vfsStream/vfsStream.php';
-if (!class_exists('vfsStream') && file_exists(BASEPATH.'vendor/autoload.php')) {
-	include_once BASEPATH.'vendor/autoload.php';
-	class_alias('org\bovigo\vfs\vfsStream', 'vfsStream');
-	class_alias('org\bovigo\vfs\vfsStreamDirectory', 'vfsStreamDirectory');
-	class_alias('org\bovigo\vfs\vfsStreamWrapper', 'vfsStreamWrapper');
+// Define default exit code
+define('EXIT_XY', 88);
+
+// Get vfsStream from includes or vendor dir
+// Right now, includes setup assumes taking the vfsStream directory out of a Composer
+// install and putting it in an includes directory as-is.
+// Using visitor components requires additional includes.
+$vfs_path = 'vfsStream/src/main/php/org/bovigo/vfs/';
+if (@include_once $vfs_path.'vfsStream.php') {
+    // Include all base source files so we don't need an autoloader
+    include_once $vfs_path.'vfsStreamContent.php';
+    include_once $vfs_path.'vfsStreamAbstractContent.php';
+    include_once $vfs_path.'vfsStreamContainer.php';
+    include_once $vfs_path.'vfsStreamContainerIterator.php';
+    include_once $vfs_path.'vfsStreamDirectory.php';
+    include_once $vfs_path.'vfsStreamException.php';
+    include_once $vfs_path.'vfsStreamFile.php';
+    include_once $vfs_path.'vfsStreamWrapper.php';
+    include_once $vfs_path.'Quota.php';
 }
+else {
+    // Use the Composer autoloader
+	@include_once BASEPATH.'vendor/autoload.php';
+}
+
+// Alias the common top-level vfsStream classes for convenience
+class_alias('org\bovigo\vfs\vfsStream', 'vfsStream');
+class_alias('org\bovigo\vfs\vfsStreamFile', 'vfsStreamFile');
+class_alias('org\bovigo\vfs\vfsStreamDirectory', 'vfsStreamDirectory');
 
 // Set localhost "remote" IP
 isset($_SERVER['REMOTE_ADDR']) OR $_SERVER['REMOTE_ADDR'] = '127.0.0.1';
 
 // Load our custom test case
-include_once TESTPATH.'Mocks/XyTestCase.php';
+include_once TESTPATH.'XyTestCase.php';
 
