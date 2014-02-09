@@ -26,21 +26,46 @@
  * @filesource
  */
 namespace Xylophone\core;
-use \RuntimeException;
 
 defined('BASEPATH') OR exit('No direct script access allowed');
 
 /**
- * Custom Autoloader Exception
+ * Exit Exception
+ *
+ * This exception may be thrown anywhere the application needs to exit with
+ * a message and an error code.
+ *
+ * @codeCoverageIgnore
+ *
+ * @package     Xylophone
+ * @subpackage  core
+ */
+class ExitException extends \Exception { }
+
+/**
+ * Cached Content Exception
+ *
+ * This exception is thrown by the play() method when cached content is delivered.
+ *
+ * @codeCoverageIgnore
+ *
+ * @package     Xylophone
+ * @subpackage  core
+ */
+class CachedException extends \Exception { }
+
+/**
+ * Autoloader Exception
  *
  * This exception is thrown by the autoloader when a class file cannot be found.
  * Doing so bypasses the fatal class-not-found PHP error and lets the framework
  * catch the exception and try another namespace, generating its own error if
  * none are found.
  *
+ * @codeCoverageIgnore
+ *
  * @package     Xylophone
  * @subpackage  core
- * @codeCoverageIgnore
  */
 class AutoloadException extends \Exception { }
 
@@ -72,6 +97,9 @@ class Xylophone
 
     /** @var    string  Application path with trailing slash */
     public $app_path = '';
+
+    /** @var    string  System namespace */
+    public $system_ns = 'Xylophone';
 
     /** @var    string  System path with trailing slash */
     public $system_path = '';
@@ -107,17 +135,19 @@ class Xylophone
      * and final so it can not be overloaded with a public constructor in a
      * subclass. This enforces the singleton design pattern.
      *
-     * Use initialize() for class object initialization.
+     * Use tune() for class object initialization.
      */
     private final function __construct()
     {
-        // Nothing to do here - see initialize() below.
+        // Nothing to do here - see tune() below.
     }
 
     /**
      * Get instance
      *
      * Returns singleton instance of framework object
+     *
+     * @throws  ExitException   When passed an invalid namespace or path
      *
      * @param   array   $init   Initialization array (when first instantiating)
      * @return  object  Xylophone object
@@ -155,12 +185,10 @@ class Xylophone
                     // Check namespaces after application
                     if (!$app && !$ns) {
                         // Fail out
-                        static::header('HTTP/1.1 503 Service Unavailable.', true, 503);
                         $msg = 'The global namespace is reserved for application classes. '.
                             'Please specify a namespace for your additional path in the following file: '.
                             basename($_SERVER['PHP_SELF']);
-                        echo $msg;
-                        throw new RuntimeException($msg);
+                        throw new ExitException($msg, EXIT_XY);
                     }
 
                     // Resolve the path
@@ -176,12 +204,10 @@ class Xylophone
                     }
                     if (!$resolved) {
                         // Fail out
-                        static::header('HTTP/1.1 503 Service Unavailable.', true, 503);
                         $msg = ($app ? 'Your application folder path does not appear to be set correctly.' :
                             'The "'.$ns.'" namespace path does not appear to be set correctly.').
                             ' Please fix it in the following file: '.basename($_SERVER['PHP_SELF']);
-                        echo $msg;
-                        throw new RuntimeException($msg);
+                        throw new ExitException($msg, EXIT_XY);
                     }
 
                     // Try to include the file
@@ -198,9 +224,9 @@ class Xylophone
             // Use system namespace if no subclass found and assemble full class name
             $class = ($namespace === null ? 'Xylophone\core\\' : $namespace).'Xylophone';
 
-            // Instantiate object as instance and initialize
+            // Instantiate object as instance and tune
             self::$instance = new $class();
-            self::$instance->initialize($init);
+            self::$instance->tune($init);
         }
 
         // Return instance
@@ -208,14 +234,14 @@ class Xylophone
     }
 
     /**
-     * Initialize framework
+     * Tune Xylophone
      *
      * @used-by Xylophone::instance()
      *
      * @param   array   $init   Initialization parameters
      * @return  void
      */
-    public function initialize($init)
+    public function tune($init)
     {
         // Kill magic quotes for older versions
         $this->isPhp('5.4') || @ini_set('magic_quotes_runtime', 0);
@@ -325,7 +351,7 @@ class Xylophone
         // Check cache_override hook and cache display to see if we're done
         if ($this->hooks->callHook('cache_override') === false && $this->output->displayCache() === true) {
             // Cache displayed - quit
-            exit;
+            return;
         }
 
         // Load remaining core classes and mark time
@@ -398,7 +424,7 @@ class Xylophone
 
         // Class must be loaded and method cannot be a member of the base class
         if (class_exists($class, false) && isset($this->$name) && 
-        !method_exists('Xylophone\core\Controller', $method)) {
+        !method_exists($this->system_ns.'\core\Controller', $method)) {
             // Capture output if requested
             $return && $this->output->stackPush();
 
@@ -454,12 +480,12 @@ class Xylophone
             // Check for bare system class
             if (($core && !$this->override_core) || ($libs && !$this->library_search)) {
                 // Search only system namespace
-                $spaces = array('Xylophone');
+                $spaces = array($this->system_ns);
             }
             else {
                 // Search all namespaces, plus system for core or libs
                 $spaces = array_keys($this->ns_paths);
-                ($core || $libs) && $spaces[] = 'Xylophone';
+                ($core || $libs) && $spaces[] = $this->system_ns;
             }
         }
         else {
@@ -479,9 +505,12 @@ class Xylophone
                     // Global namespace - set hint
                     $this->loader_hint = $hint;
                 }
-                elseif ($hint !== '') {
-                    // Append hint as sub-namespace
-                    $class .= '\\'.ltrim(str_replace('/', '\\', $hint), '\\').'\\';
+                else {
+                    // Add namespace slash
+                    $class .= '\\';
+
+                    // Append any hint as sub-namespace
+                    $hint === '' || $class .= ltrim(str_replace('/', '\\', $hint), '\\').'\\';
                 }
                 $class .= $name;
 
@@ -690,10 +719,11 @@ class Xylophone
     public function isUsable($func)
     {
         // Does the function exist?
-        if (function_exists($func)) {
+        if (function_exists($func) || $func === 'eval') {
             // Have we loaded the suhosin blacklist?
             if (!isset($this->suhosin_blist)) {
-                // Is suhosin loaded?
+                // Is suhosin loaded? - this is too unpredictable to test
+                // @codeCoverageIgnoreStart
                 if (extension_loaded('suhosin')) {
                     // Get blacklist
                     $this->suhosin_blist = explode(',', trim(@ini_get('suhosin.executor.func.blacklist')));
@@ -707,6 +737,7 @@ class Xylophone
                     // Set empty blacklist
                     $this->suhosin_blist = array();
                 }
+                // @codeCoverageIgnoreEnd
             }
 
             // Return whether function is not blacklisted
@@ -730,28 +761,35 @@ class Xylophone
     public function isWritable($file)
     {
         // If we're on a Unix server with safe_mode off we call is_writable
-        if (DIRECTORY_SEPARATOR === '/' && ($this->isPhp('5.4') || (bool)@ini_get('safe_mode') === false)) {
+        if (DIRECTORY_SEPARATOR === '/' && ($this->isPhp('5.4') || (bool)@ini_get('safe_mode') === false) &&
+        !defined('TESTPATH')) {
+            // @codeCoverageIgnoreStart
             return is_writable($file);
+            // @codeCoverageIgnoreEnd
         }
+
+        // In case constants are not defined, use defaults
+        $cmode = defined('FOPEN_WRITE_CREATE') ? FOPEN_WRITE_CREATE : 'a+b';
+        $wmode = defined('DIR_WRITE_MODE') ? DIR_WRITE_MODE : 0777;
 
         // For Windows servers and safe_mode "on" installations, write a file then read it
         if (is_dir($file)) {
             $file = rtrim($file, '/').'/'.md5(mt_rand());
-            if (($fp = @fopen($file, FOPEN_WRITE_CREATE)) === false) {
+            if (($fp = @fopen($file, $cmode)) === false) {
                 return false;
             }
 
             fclose($fp);
-            @chmod($file, DIR_WRITE_MODE);
+            @chmod($file, $wmode);
             @unlink($file);
             return true;
         }
-        elseif (!is_file($file) || ($fp = @fopen($file, FOPEN_WRITE_CREATE)) === false) {
-            return false;
+        elseif (is_file($file) && ($fp = @fopen($file, $cmode)) !== false) {
+            fclose($fp);
+            return true;
         }
 
-        fclose($fp);
-        return true;
+        return false;
     }
 
     /**
@@ -790,10 +828,10 @@ class Xylophone
     /**
      * SPL Class Autoloader
      *
-     * The autoloader, registered in initialize(), includes a class source file
+     * The autoloader, registered in tune(), includes a class source file
      * based on the namespace and a path hint if the global namespace is used.
      *
-     * @throws  AutloadException
+     * @throws  AutloadException    When source file is not found
      *
      * @param   string  $class  Class name with full namespace
      * @return  void
@@ -801,7 +839,7 @@ class Xylophone
     public function autoloader($class)
     {
         // Break out namespace and class
-        $parts = explode('\\', $class);
+        $parts = explode('\\', trim($class, '\\'));
 
         // Get filename from class
         $file = ucfirst(array_pop($parts)).'.php';
@@ -810,17 +848,21 @@ class Xylophone
         $tln = count($parts) ? array_shift($parts) : '';
 
         // Translate top-level namespace
-        if (isset($this->ns_paths[$tln])) {
+        if ($tln == $this->system_ns) {
+            $path = $this->system_path;
+        }
+        elseif (isset($this->ns_paths[$tln])) {
             $path = $this->ns_paths[$tln];
+        }
 
+        if (isset($path)) {
             // Append sub-namespaces or hint as subdirectories
-            $path .= (count($parts) ?
-                implode(DIRECTORY_SEPARATOR, $parts) :
-                str_replace('/', DIRECTORY_SEPARATOR, $this->loader_hint)
-                ).DIRECTORY_SEPARATOR;
+            $path .= (count($parts) ?  implode(DIRECTORY_SEPARATOR, $parts) :
+                str_replace('/', DIRECTORY_SEPARATOR, $this->loader_hint)).DIRECTORY_SEPARATOR;
 
             // Include file
-            if (!@include($path.$file)) {
+            error_log('Including '.$path.$file);
+            if (@include($path.$file)) {
                 return;
             }
         }
@@ -832,7 +874,7 @@ class Xylophone
     /**
      * Exception Handler
      *
-     * This is the custom exception handler that is registered in initialize().
+     * This is the custom exception handler that is registered in tune().
      * The main reason we use this is to permit PHP errors to be logged in our
      * own log files since the user may not have access to server logs. Since
      * this function effectively intercepts PHP errors, however, we also need
@@ -863,7 +905,7 @@ class Xylophone
     /**
      * Shutdown Handler
      *
-     * This is the shutdown handler that is registered in initialize().
+     * This is the shutdown handler that is registered in tune().
      * We use this to simulate a complete custom exception handler.
      *
      * E_STRICT is purposivly neglected because such events may have
@@ -887,6 +929,8 @@ class Xylophone
      *
      * This method allows us to bypass registration during testing.
      *
+     * @codeCoverageIgnore
+     *
      * @return  void
      */
     protected function registerHandlers()
@@ -904,6 +948,8 @@ class Xylophone
      *
      * This abstraction of the realpath call allows overriding for unit testing
      *
+     * @codeCoverageIgnore
+     *
      * @param   string  $path   Path to resolve
      * @return  string  Real path
      */
@@ -911,22 +957,6 @@ class Xylophone
     {
         // Normally, we just call realpath()
         return realpath($path);
-    }
-
-    /**
-     * Send a raw HTTP header
-     *
-     * This abstraction of the header call allows overriding for unit testing
-     *
-     * @param   string  $string     Header string
-     * @param   bool    $replace    Whether to replace matching header
-     * @param   int     $code       HTTP response code
-     * @return  void
-     */
-    protected static function header($string, $replace, $code)
-    {
-        // Normally, we just call header()
-        header($string, $replace, $code);
     }
 }
 

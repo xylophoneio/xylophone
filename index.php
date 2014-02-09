@@ -194,6 +194,9 @@ defined('STDIN') && chdir(dirname(__FILE__));
 // Define BASEPATH for direct access restriction on application scripts
 define('BASEPATH', __DIR__);
 
+// Define a default 'X' exit code
+define('EXIT_XY', 88);
+
 // Get initial benchmark if enabled
 $benchmark && $benchmark = microtime(true);
 
@@ -220,20 +223,29 @@ if (!$resolved) {
     header('HTTP/1.1 503 Service Unavailable.', true, 503);
     echo 'Your system folder path does not appear to be set correctly. Please fix it in the following file: '.
         basename(__FILE__);
-    exit(EXIT_CONFIG);
+    exit(EXIT_XY);
 }
 
-// Load the bootstrap file and launch
+// Load the Xylophone class
 require_once $system_path.'core'.DIRECTORY_SEPARATOR.'Xylophone.php';
-$XY = Xylophone\core\Xylophone::instance(array(
-    'environment' => $environment,
-    'ns_paths' => array_merge(array($application_namespace => $application_folder), $namespace_paths),
-    'view_paths' => array($view_folder),
-    'base_path' => BASEPATH.DIRECTORY_SEPARATOR,
-    'system_path' => $system_path,
-    'resolve_bases' => $resolve_bases,
-    'override_core' => $override_core,
-    'library_search' => $library_search
-));
-$XY->play($benchmark, $config, $routing);
+try {
+    // Create the global Xylophone instance and play!
+    $XY = Xylophone\core\Xylophone::instance(array(
+        'environment' => $environment,
+        'ns_paths' => array_merge(array($application_namespace => $application_folder), $namespace_paths),
+        'view_paths' => array($view_folder),
+        'base_path' => BASEPATH.DIRECTORY_SEPARATOR,
+        'system_path' => $system_path,
+        'resolve_bases' => $resolve_bases,
+        'override_core' => $override_core,
+        'library_search' => $library_search
+    ));
+    $XY->play($benchmark, $config, $routing);
+} catch (Xylophone\core\ExitException $ex) {
+    // Alert user and exit
+    header('HTTP/1.1 503 Service Unavailable.', true, 503);
+    echo $ex->getMessage();
+    $code = $ex->getCode();
+    exit($code ? $code : EXIT_XY);
+}
 
