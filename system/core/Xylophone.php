@@ -30,6 +30,21 @@ namespace Xylophone\core;
 defined('BASEPATH') OR exit('No direct script access allowed');
 
 /**
+ * Al Fine Exception
+ *
+ * This exception may be thrown when the application has completed its output
+ * (early) and needs to skip to the end (al fine) of processing and exit cleanly.
+ * It is particularly useful when a module takes over the request and generates
+ * output in place of the normal controller output (such as a login prompt).
+ *
+ * @codeCoverageIgnore
+ *
+ * @package     Xylophone
+ * @subpackage  core
+ */
+class AlFineException extends \Exception { }
+
+/**
  * Exit Exception
  *
  * This exception may be thrown anywhere the application needs to exit with
@@ -41,18 +56,6 @@ defined('BASEPATH') OR exit('No direct script access allowed');
  * @subpackage  core
  */
 class ExitException extends \Exception { }
-
-/**
- * Cached Content Exception
- *
- * This exception is thrown by the play() method when cached content is delivered.
- *
- * @codeCoverageIgnore
- *
- * @package     Xylophone
- * @subpackage  core
- */
-class CachedException extends \Exception { }
 
 /**
  * Autoloader Exception
@@ -306,13 +309,39 @@ class Xylophone
      */
     public function play($benchmark = false, $config = null, $routing = null)
     {
+        // Play all the parts
+        $autoload = $this->playIntro($benchmark, $config);
+        $this->playBridge($routing);
+        if ($this->playCoda()) {
+            // Cache delivered - quit
+            return;
+        }
+        $this->playChorus($benchmark, $autoload);
+        $this->playVerse($benchmark);
+    }
+
+    /**
+     * Play Introduction
+     *
+     * Prepares the basic foundation services by loading
+     * Benchmark (if enabled), Config, Logger, and Output.
+     * Gets constants, mime types, and autoload config.
+     * Autoloads namespaces, view paths, and config items.
+     *
+     * @used-by Xylophone::play()
+     *
+     * @param   mixed   $benchmark  Initial benchmark time or FALSE
+     * @param   array   $config     Reference to bootstrap config items
+     * @return  array   Reference to autoload config array
+     */
+    protected function &playIntro($benchmark, &$config)
+    {
         // Check for benchmarking
         if ($benchmark) {
             // Load Benchmark and initiate timing
             $this->benchmark = $this->loadClass('Benchmark', 'core');
             $this->benchmark->marker['total_execution_time_start'] = $benchmark;
             $this->benchmark->marker['loading_time:_base_classes_start'] = $benchmark;
-            $benchmark = true;
         }
 
         // Load Config, set overrides, load constants and get autoload config
@@ -335,6 +364,25 @@ class Xylophone
         $mimes = $this->config->get('mimes.php', 'mimes');
         is_array($mimes) && $this->config->setItem('mimes', $mimes);
 
+        // Return autoload for chorus
+        return $autoload;
+    }
+
+    /**
+     * Play Bridge
+     *
+     * Builds on the intro foundation by loading
+     * Loader, Hooks, UTF-8, URI, and Router.
+     * Sets routing overrides if provided.
+     * Calls pre_system hook.
+     *
+     * @used-by Xylophone::play()
+     *
+     * @param   array   $routing    Routing overrides
+     * @return  void
+     */
+    protected function playBridge(&$routing)
+    {
         // Load Loader and Hooks (which depends on Loader), and call pre_system
         $this->load = $this->loadClass('Loader', 'core');
         $this->hooks = $this->loadClass('Hooks', 'core');
@@ -347,13 +395,44 @@ class Xylophone
         isset($routing['directory']) && $this->router->route['path'] = $routing['directory'];
         isset($routing['controller']) && $this->router->route['class'] = $routing['controller'];
         isset($routing['function']) && $this->router->route['method'] = $routing['function'];
+    }
 
+    /**
+     * Play Coda
+     *
+     * Finishes playing if cached output is found.
+     * Calls cache_override hook.
+     *
+     * @used-by Xylophone::play()
+     *
+     * @return  bool    TRUE if cache output, otherwise FALSE
+     */
+    protected function playCoda()
+    {
         // Check cache_override hook and cache display to see if we're done
         if ($this->hooks->callHook('cache_override') === false && $this->output->displayCache() === true) {
             // Cache displayed - quit
-            return;
+            return true;
         }
 
+        // No cache
+        return false;
+    }
+
+    /**
+     * Play Chorus
+     *
+     * Rounds out the chorus of elements by loading Security, Input, and Lang.
+     * Autoloads languages, drivers, libraries, and models.
+     *
+     * @used-by Xylophone::play()
+     *
+     * @param   mixed   $benchmark  Benchmark flag
+     * @param   array   $autoload   Reference to autoload config array
+     * @return  void
+     */
+    protected function playChorus($benchmark, &$autoload)
+    {
         // Load remaining core classes and mark time
         $this->security = $this->loadClass('Security', 'core');
         $this->input = $this->loadClass('Input', 'core');
@@ -365,21 +444,43 @@ class Xylophone
         isset($autoload['drivers']) && $this->load->driver($autoload['drivers']);
         isset($autoload['libraries']) && $this->load->library($autoload['libraries']);
         isset($autoload['model']) && $this->load->model($autoload['model']);
+    }
 
+    /**
+     * Play Verse
+     *
+     * Presents the main verse by loading the controller and
+     * calling the routed method.
+     * Calls pre_controller, post_controller_constructor, post_controller,
+     * display_override, and post_system hooks.
+     *
+     * @used-by Xylophone::play();
+     *
+     * @param   mixed   $benchmark  Benchmark flag
+     * @return  void
+     */
+    protected function playVerse($benchmark)
+    {
         // Call pre_controller and mark controller start point
         $this->hooks->callHook('pre_controller');
         $benchmark && $this->benchmark->mark('controller_execution_time_start');
 
         // Load the controller, but don't call the method yet
         $parts = explode('\\', $this->router->route['class']);
-        $class = strtolower(end($parts));
+        $class = end($parts);
+        $name = strtolower($class);
         $method = $this->router->route['method'];
-        $this->load->controller($this->router->route, '', false) || $this->show404($class.'/'.$method);
+        $this->load->controller($this->router->route, $name, false) || $this->show404($class.'/'.$method);
 
-        // Set special "routed" reference to routed Controller
-        $this->routed = $this->$class;
+        // Set special "routed" reference to routed Controller,
+        // call post_controller_constructor, and call controller method
+        $this->routed = $this->$name;
         $this->hooks->callHook('post_controller_constructor');
-        $this->callController($this->router->route) || $this->show404($class.'/'.$method);
+        try {
+            $this->callController($this->router->route) || $this->show404($class.'/'.$method);
+        } catch (AlFineException $ex) {
+            // Finished early - nothing to do herek
+        }
 
         // Mark end time, display output unless overridden, and call post_system
         $benchmark && $this->benchmark->mark('controller_execution_time_end');
@@ -398,10 +499,10 @@ class Xylophone
      * @param   string  $method Method name (unless $class is stack)
      * @param   array   $args   Arguments array (unless $class is stack)
      * @param   string  $name   Optional object name
-     * @param   bool    $return TRUE to return output
+     * @param   bool    $return Whether to return output
      * @return  mixed   Output if $return, TRUE on success, otherwise FALSE
      */
-    public function callController($class, $method, array $args = array(), $name = '', $return = false)
+    public function callController($class, $method = '', array $args = array(), $name = '', $return = false)
     {
         // Check for route stack
         if (is_array($class) && isset($class['class'])) {
@@ -422,16 +523,15 @@ class Xylophone
             $name = strtolower(end($parts));
         }
 
-        // Class must be loaded and method cannot be a member of the base class
-        if (class_exists($class, false) && isset($this->$name) && 
-        !method_exists($this->system_ns.'\core\Controller', $method)) {
+        // Class must be loaded and method cannot start with an underscore
+        if (class_exists($class, false) && isset($this->$name) && is_a($this->$name, $class) && $method[0] != '_') {
             // Capture output if requested
             $return && $this->output->stackPush();
 
             // Check for remap
-            if ($this->isCallable($class, 'remap')) {
+            if ($this->isCallable($class, 'xyRemap')) {
                 // Call remap
-                $this->$name->remap($method, $args);
+                $this->$name->xyRemap($method, $args);
             }
             elseif ($this->isCallable($class, $method)) {
                 // Call method
@@ -895,10 +995,10 @@ class Xylophone
         }
 
         // Should we display the error?
-        $_error = $this->loadClass('Exceptions', 'core');
-        ((bool)ini_get('display_errors') === true) && $_error->showPhpError($severity, $message, $filepath, $line);
+        $error = $this->loadClass('Exceptions', 'core');
+        ((bool)ini_get('display_errors') === true) && $error->showPhpError($severity, $message, $filepath, $line);
 
-        $_error->logException($severity, $message, $filepath, $line);
+        $error->logException($severity, $message, $filepath, $line);
     }
 
     /**
@@ -906,9 +1006,9 @@ class Xylophone
      *
      * This is the shutdown handler that is registered in tune().
      * We use this to simulate a complete custom exception handler.
+     * E_STRICT is purposely ignored because such events may be caught.
      *
-     * E_STRICT is purposivly neglected because such events may have
-     * been caught. Duplication or none? None is preferred for now.
+     * @codeCoverageIgnore
      *
      * @link    http://insomanic.me.uk/post/229851073/php-trick-catching-fatal-errors-e-error-with-a
      * @return  void
