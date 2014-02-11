@@ -70,15 +70,17 @@ class Lang
         global $XY;
 
         if (is_array($langfile)) {
-            $return && $return false;
+            $retval = array();
 
             foreach ($langfile as $lang) {
-                if (!$this->load($lang, $idiom, $return, $add_suffix, $alt_path)) {
+                $ret = $this->load($lang, $idiom, $return, $add_suffix, $alt_path);
+                if (!$ret) {
                     return false;
                 }
+                $retval[$lang] = $ret;
             }
 
-            return true;
+            return $return ? $retval : true;
         }
 
         $langfile = str_replace('.php', '', $langfile);
@@ -90,7 +92,7 @@ class Lang
         }
 
         if (!$return && isset($this->is_loaded[$langfile]) && $this->is_loaded[$langfile] === $idiom) {
-            return;
+            return true;
         }
 
         // Load the base file, so any others found can override it
@@ -114,7 +116,7 @@ class Lang
             if ($return) {
                 return array();
             }
-            return;
+            return false;
         }
 
         if ($return) {
