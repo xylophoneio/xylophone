@@ -109,8 +109,9 @@ class URI
             }
 
             // As a last ditch effort let's try using the $_GET array
-            is_array($_GET) && count($_GET) == 1 && trim(key($_GET), '/') !== '' &&
+            if (is_array($_GET) && count($_GET) == 1 && trim(key($_GET), '/') !== '') {
                 return $this->setUriString(key($_GET));
+            }
 
             // We've exhausted all our options...
             $this->uri_string = '';

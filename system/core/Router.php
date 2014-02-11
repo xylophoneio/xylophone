@@ -272,8 +272,8 @@ class Router
         // Check for method/args array
         if (is_array($method)) {
             // Extract method and set remainder to args
-            $stack['method'] => count($method) ? array_shift($method) : 'index';
-            $stack['args'] => $method;
+            $stack['method'] = count($method) ? array_shift($method) : 'index';
+            $stack['args'] = $method;
         }
         else {
             // Set method and empty args

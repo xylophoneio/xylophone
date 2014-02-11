@@ -39,7 +39,7 @@ defined('BASEPATH') OR exit('No direct script access allowed');
  * @author      Xylophone Dev Team
  * @link        http://xylophone.io/user_guide/libraries/config.html
  */
-class Config implements ArrayAccess
+class Config implements \ArrayAccess
 {
     /** @var    array   List of all loaded config values */
     public $config = array();

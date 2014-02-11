@@ -46,7 +46,7 @@ defined('BASEPATH') OR exit('No direct script access allowed');
  * @package     Xylophone
  * @subpackage  core
  */
-class UnsupportedException extends Exception
+class UnsupportedException extends \Exception
 {
     /**  @var   string  Alternate class to load */
     public $alternate = '';
