@@ -70,3 +70,16 @@ isset($_SERVER['REMOTE_ADDR']) OR $_SERVER['REMOTE_ADDR'] = '127.0.0.1';
 // Load our custom test case
 include_once TESTPATH.'XyTestCase.php';
 
+// Register our test autoloader
+spl_autoload_register(function ($class) {
+    // Break out namespace and class
+    $parts = explode('\\', trim($class, '\\'));
+    if ($parts[0] == 'Xylophone') {
+        // Remove system namespace
+        array_shift($parts);
+
+        // Include reassembled namespace as path to source file
+        include_once BASEPATH.'system/'.implode('/', $parts).'.php';
+    }
+});
+

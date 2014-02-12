@@ -54,34 +54,6 @@ class XyTestCase extends PHPUnit_Framework_TestCase
     /** @var    string  VFS app_path */
     protected $vfs_app_path = '';
 
-    /** @var    bool    Autoloader registered flag */
-    protected $spl_registered = false;
-
-    /**
-     * Test Case Setup
-     *
-     * @return  void
-     */
-    public function setUp()
-    {
-        // Run test setup if present
-        method_exists($this, 'xySetUp') && $this->xySetUp();
-    }
-
-    /**
-     * Test Case Teardown
-     *
-     * @return  void
-     */
-    public function tearDown()
-    {
-        // Run test teardown if present
-        method_exists($this, 'xyTearDown') && $this->xyTearDown();
-
-        // Unregister autoloader as needed
-        $this->spl_registered && spl_autoload_unregister(array($this, 'autoloader'));
-    }
-
     /**
      * Initialize VFS
      *
@@ -286,43 +258,6 @@ class XyTestCase extends PHPUnit_Framework_TestCase
         // Run class definition
         eval($ns.'class '.$class.' {'.$memdec.
             ' public function '.$method.'('.$params.') {'.$memset.$echo.$throw.' } }');
-    }
-
-    /**
-     * Register system class autoloader
-     *
-     * Registers the autoloader for getting Xylophone system classes.
-     * Autoloader is automatically unregistered during teardown.
-     *
-     * @return  void
-     */
-    protected function registerAutoloader()
-    {
-        // Redundancy check
-        if (!$this->spl_registered) {
-            // Register the autoloader and flag for unregistering
-            spl_autoload_register(array($this, 'autoloader'));
-            $this->spl_registered = true;
-        }
-    }
-
-    /**
-     * Autoload Xylophone system classes
-     *
-     * @param   string  $class  Class name
-     * @return  void
-     */
-    protected function autoloader($class)
-    {
-        // Break out namespace and class
-        $parts = explode('\\', trim($class, '\\'));
-        if ($parts[0] == 'Xylophone') {
-            // Remove system namespace
-            array_shift($parts);
-
-            // Include reassembled namespace as path to source file
-            include_once BASEPATH.'system/'.implode('/', $parts).'.php';
-        }
     }
 }
 

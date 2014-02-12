@@ -81,7 +81,7 @@ class XylophoneTest extends XyTestCase
      *
      * @return  void
      */
-    public function xySetUp()
+    public function setUp()
     {
         // We can't instantiate externally to trigger autoloader, so
         // manually include source file and mock source
@@ -477,7 +477,6 @@ class XylophoneTest extends XyTestCase
 
         // Create mock Output class with stack calls
         $output = 'My Controller Made This';
-        $this->registerAutoloader();
         $XY->output = $this->getMock('Xylophone\core\Output', array(), array(), '', false);
         $XY->output->expects($this->any())->method('stackPop')->will($this->returnValue($output));
 
@@ -574,7 +573,6 @@ class XylophoneTest extends XyTestCase
         $mimes = array('face' => 'white', 'speech' => false);
 
         // Get mock Config, Logger, and Output
-        $this->registerAutoloader();
         $cfg = $this->getMock('Xylophone\core\Config', array('setItem', 'get', 'load'), array(), '', false);
         $lgr = $this->getMock('Xylophone\core\Logger', null, array(), '', false);
         $out = $this->getMock('Xylophone\core\Output', null, array(), '', false);
@@ -625,7 +623,6 @@ class XylophoneTest extends XyTestCase
         $config = false;
 
         // Get mock Benchmark, Config, Logger, and Output
-        $this->registerAutoloader();
         $bmk = $this->getMock('Xylophone\core\Benchmark', null, array(), '', false);
         $cfg = $this->getMock('Xylophone\core\Config', array('setItem', 'get', 'load'), array(), '', false);
         $lgr = $this->getMock('Xylophone\core\Logger', null, array(), '', false);
@@ -674,7 +671,6 @@ class XylophoneTest extends XyTestCase
         $routing = array('directory' => '', 'controller' => '', 'function' => '');
 
         // Get mock Loader, Hooks, Utf8, URI, and Router
-        $this->registerAutoloader();
         $ldr = $this->getMock('Xylophone\core\Loader', null, array(), '', false);
         $hks = $this->getMock('Xylophone\core\Hooks', array('callHook'), array(), '', false);
         $utf = $this->getMock('Xylophone\core\Utf8', null, array(), '', false);
@@ -730,7 +726,6 @@ class XylophoneTest extends XyTestCase
     public function testPlayCoda($XY)
     {
         // Get mock Hooks and Output
-        $this->registerAutoloader();
         $XY->hooks = $this->getMock('Xylophone\core\Hooks', array('callHook'), array(), '', false);
         $XY->output = $this->getMock('Xylophone\core\Output', array('displayCache'), array(), '', false);
 
@@ -755,7 +750,6 @@ class XylophoneTest extends XyTestCase
     public function testPlayCodaOverride($XY)
     {
         // Get mock Hooks and set up callHook() call
-        $this->registerAutoloader();
         $XY->hooks = $this->getMock('Xylophone\core\Hooks', array('callHook'), array(), '', false);
         $XY->hooks->expects($this->once())->method('callHook')->with($this->equalTo('cache_override'))->
             will($this->returnValue(true));
@@ -775,7 +769,6 @@ class XylophoneTest extends XyTestCase
     public function testPlayCodaNoCache($XY)
     {
         // Get mock Hooks and Output
-        $this->registerAutoloader();
         $XY->hooks = $this->getMock('Xylophone\core\Hooks', array('callHook'), array(), '', false);
         $XY->output = $this->getMock('Xylophone\core\Output', array('displayCache'), array(), '', false);
 
@@ -804,7 +797,6 @@ class XylophoneTest extends XyTestCase
         $autoload = array('language' => 'klingon', 'drivers' => 'database', 'libraries' => 'books', 'model' => 'T');
 
         // Get mock Security, Input, Lang, and Loader
-        $this->registerAutoloader();
         $sec = $this->getMock('Xylophone\core\Security', null, array(), '', false);
         $inp = $this->getMock('Xylophone\core\Input', null, array(), '', false);
         $lng = $this->getMock('Xylophone\core\Lang', array('load'), array(), '', false);
@@ -850,7 +842,6 @@ class XylophoneTest extends XyTestCase
         $autoload = array();
 
         // Get mock Benchmark, Security, Input, and Lang
-        $this->registerAutoloader();
         $XY->benchmark = $this->getMock('Xylophone\core\Benchmark', array('mark'), array(), '', false);
         $sec = $this->getMock('Xylophone\core\Security', null, array(), '', false);
         $inp = $this->getMock('Xylophone\core\Input', null, array(), '', false);
