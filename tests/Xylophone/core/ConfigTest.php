@@ -1,233 +1,801 @@
 <?php
+/**
+ * Xylophone
+ *
+ * An open source HMVC application development framework for PHP 5.3 or newer
+ * Derived from CodeIgniter, Copyright (c) 2008 - 2013, EllisLab, Inc. (http://ellislab.com/)
+ *
+ * NOTICE OF LICENSE
+ *
+ * Licensed under the Open Software License version 3.0
+ *
+ * This source file is subject to the Open Software License (OSL 3.0) that is
+ * bundled with this package in the files license.txt / license.rst. It is
+ * also available through the world wide web at this URL:
+ * http://opensource.org/licenses/OSL-3.0
+ * If you did not receive a copy of the license and are unable to obtain it
+ * through the world wide web, please send an email to licensing@xylophone.io
+ * so we can send you a copy immediately.
+ *
+ * @package     Xylophone
+ * @author      Xylophone Dev Team, EllisLab Dev Team
+ * @copyright   Copyright (c) 2014, Xylophone Team (http://xylophone.io/)
+ * @license     http://opensource.org/licenses/OSL-3.0 Open Software License (OSL 3.0)
+ * @link        http://xylophone.io
+ * @since       Version 1.0
+ * @filesource
+ */
 
-class Config_test extends CI_TestCase {
+/**
+ * Config Unit Test
+ *
+ * @package Xylophone
+ */
+class ConfigTest extends XyTestCase
+{
+    /**
+     * Test __construct()
+     */
+    public function testConstruct()
+    {
+        // Mock Config and set up call
+        $config = $this->getMock('Xylophone\core\Config', array('get'), array(), '', false);
+        $cfg = array('base_url' => 'http://example.com/');
+        $config->expects($this->once())->method('get')->
+            with($this->equalTo('config.php'), $this->equalTo('config'))->
+            will($this->returnValue($cfg));
 
-	public function set_up()
-	{
-		$cls =& $this->ci_core_class('cfg');
+        // Verify config and is_loaded are empty
+        $this->assertEmpty($config->config);
+        $this->assertEmpty($config->is_loaded);
 
-		// set predictable config values
-		$this->cfg = array(
-			'index_page'		=> 'index.php',
-			'base_url'		=> 'http://example.com/',
-			'subclass_prefix'	=> 'MY_'
-		);
-		$this->ci_set_config($this->cfg);
+        // Call __construct() (yes, after instantiation) and confirm base config
+        $config->__construct();
+        $this->assertEquals($cfg, $config->config);
+    }
 
-		$this->config = new $cls;
-	}
+    /**
+     * Test __construct() with no config
+     */
+    public function testConstructNoConfig()
+    {
+        // Mock Config and set up call
+        $config = $this->getMock('Xylophone\core\Config', array('get'), array(), '', false);
+        $config->expects($this->once())->method('get')->will($this->returnValue(false));
 
-	// --------------------------------------------------------------------
+        // Call __construct() (yes, again) and confirm exception
+        $this->setExpectedException('Xylophone\core\ExitException', 'The configuration file does not exist.');
+        $config->__construct();
+    }
 
-	public function test_item()
-	{
-		$this->assertEquals($this->cfg['base_url'], $this->config->item('base_url'));
+    /**
+     * Test __construct() with a bad config
+     */
+    public function testConstructBadConfig()
+    {
+        // Mock Config and set up call
+        $config = $this->getMock('Xylophone\core\Config', array('get'), array(), '', false);
+        $config->expects($this->once())->method('get')->will($this->returnValue('/some/bad/path'));
 
-		// Bad Config value
-		$this->assertNull($this->config->item('no_good_item'));
+        // Call __construct() (some more) and confirm exception
+        $this->setExpectedException('Xylophone\core\ExitException', 'The configuration file is invalid.');
+        $config->__construct();
+    }
 
-		// Index
-		$this->assertNull($this->config->item('no_good_item', 'bad_index'));
-		$this->assertNull($this->config->item('no_good_item', 'default'));
-	}
+    /**
+     * Test __construct() with no base_url
+     */
+    public function testConstructNoBase()
+    {
+        global $XY;
 
-	// --------------------------------------------------------------------
+        // Set up args
+        $path = '/test/path/';
+        $host = 'testhost.com';
+        $url = 'http://'.$host.$path;
 
-	public function test_set_item()
-	{
-		$this->assertNull($this->config->item('not_yet_set'));
+        // Mock Xylophone and Config and set up calls
+        $XY = $this->getMock('Xylophone\core\Xylophone', array(), array(), '', false);
+        $config = $this->getMock('Xylophone\core\Config', array('get', 'setItem'), array(), '', false);
+        $config->expects($this->once())->method('get')->will($this->returnValue(array()));
+        $config->expects($this->once())->method('setItem')->
+            with($this->equalTo('base_url'), $this->equalTo($url));
+        $XY->expects($this->once())->method('isHttps')->will($this->returnValue(false));
 
-		$this->config->set_item('not_yet_set', 'is set');
-		$this->assertEquals('is set', $this->config->item('not_yet_set'));
-	}
+        // Set server vars
+        $http = isset($_SERVER['HTTP_HOST']) ? $_SERVER['HTTP_HOST'] : null;
+        $_SERVER['HTTP_HOST'] = $host;
+        $script = isset($_SERVER['SCRIPT_NAME']) ?  $_SERVER['SCRIPT_NAME'] : null;
+        $_SERVER['SCRIPT_NAME'] = $path.'file';
 
-	// --------------------------------------------------------------------
+        // Call __construct() (ad nauseum)
+        $config->__construct();
 
-	public function test_slash_item()
-	{
-		// Bad Config value
-		$this->assertNull($this->config->slash_item('no_good_item'));
+        // Clean up
+        if ($script === null) {
+            unset($_SERVER['SCRIPT_NAME']);
+        }
+        else {
+            $_SERVER['SCRIPT_NAME'] = $script;
+        }
+        if ($http === null) {
+            unset($_SERVER['HTTP_HOST']);
+        }
+        else {
+            $_SERVER['HTTP_HOST'] = $http;
+        }
+    }
 
-		$this->assertEquals($this->cfg['base_url'], $this->config->slash_item('base_url'));
-		$this->assertEquals($this->cfg['subclass_prefix'].'/', $this->config->slash_item('subclass_prefix'));
-	}
+    /**
+     * Test __construct() with no base_url and no host
+     */
+    public function testConstructNoBaseHost()
+    {
+        // Mock Config and set up calls
+        $config = $this->getMock('Xylophone\core\Config', array('get', 'setItem'), array(), '', false);
+        $config->expects($this->once())->method('get')->will($this->returnValue(array()));
+        $config->expects($this->once())->method('setItem')->
+            with($this->equalTo('base_url'), $this->equalTo('http://localhost/'));
 
-	// --------------------------------------------------------------------
+        // Set server vars
+        $http = isset($_SERVER['HTTP_HOST']) ? $_SERVER['HTTP_HOST'] : null;
+        unset($_SERVER['HTTP_HOST']);
 
-	public function test_base_url()
-	{
-		// Test regular base URL
-		$base_url = $this->cfg['base_url'];
-		$this->assertEquals($base_url, $this->config->base_url());
+        // Call __construct() (one last time)
+        $config->__construct();
 
-		// Test with URI
-		$uri = 'test';
-		$this->assertEquals($base_url.$uri, $this->config->base_url($uri));
+        // Clean up
+        $http === null || $_SERVER['HTTP_HOST'] = $http;
+    }
 
-		// Clear base_url
-		$this->ci_set_config('base_url', '');
+    /**
+     * Test load()
+     */
+    public function testLoad()
+    {
+        global $XY;
 
-		// Rerun constructor
-		$cls =& $this->ci_core_class('cfg');
-		$this->config = new $cls;
+        // Set up args
+        $name = 'testcfg';
+        $file = $name.'.php';
+        $cfg = array('one' => '1', 'two' => '2', 'three' => '3');
 
-		// Test default base
-		$this->assertEquals('http://localhost/', $this->config->base_url());
+        // Mock Xylophone and Config and Logger and set up calls
+        $XY = new stdClass();
+        $config = $this->getMock('Xylophone\core\Config', array('get'), array(), '', false);
+        $config->expects($this->once())->method('get')->with($this->equalTo($file), $this->equalTo('config'))->
+            will($this->returnValue($cfg));
+        $XY->logger = $this->getMock('Xylophone\core\Logger', array('debug'), array(), '', false);
+        $XY->logger->expects($this->once())->method('debug')->
+            with($this->equalTo('Config file loaded: '.$name.'.php'));
 
-		// Capture server vars
-		$old_host = isset($_SERVER['HTTP_HOST']) ? $_SERVER['HTTP_HOST'] : NULL;
-		$old_script = isset($_SERVER['SCRIPT_NAME']) ? $_SERVER['SCRIPT_NAME'] : NULL;
-		$old_https = isset($_SERVER['HTTPS']) ? $_SERVER['HTTPS'] : NULL;
+        // Call load() and verify results
+        $this->assertTrue($config->load($file));
+        $this->assertEquals($cfg, $config->config);
+        $this->assertEquals(array($name), $config->is_loaded);
+    }
 
-		// Setup server vars for detection
-		$host = 'test.com';
-		$path = '/path/';
-		$script = 'base_test.php';
-		$_SERVER['HTTP_HOST'] = $host;
-		$_SERVER['SCRIPT_NAME'] = $path.$script;
+    /**
+     * Test load() with sections
+     */
+    public function testLoadSections()
+    {
+        global $XY;
 
-		// Rerun constructor
-		$this->config = new $cls;
+        // Set up args
+        $name = 'sectcfg';
+        $file = $name.'.php';
+        $cfg = array('red' => 'apple', 'blue' => 'berry');
 
-		// Test plain detected
-		$this->assertEquals('http://'.$host.$path, $this->config->base_url());
+        // Mock Xylophone and Config and Logger and set up calls
+        $XY = new stdClass();
+        $config = $this->getMock('Xylophone\core\Config', array('get'), array(), '', false);
+        $config->expects($this->once())->method('get')->with($this->equalTo($file), $this->equalTo('config'))->
+            will($this->returnValue($cfg));
+        $XY->logger = $this->getMock('Xylophone\core\Logger', array('debug'), array(), '', false);
+        $XY->logger->expects($this->once())->method('debug')->
+            with($this->equalTo('Config file loaded: '.$name.'.php'));
 
-		// Rerun constructor
-		$_SERVER['HTTPS'] = 'on';
-		$this->config = new $cls;
+        // Call load() and verify results
+        $this->assertTrue($config->load($file, true));
+        $this->assertArrayHasKey($name, $config->config);
+        $this->assertEquals($cfg, $config->config[$name]);
+        $this->assertEquals(array($name), $config->is_loaded);
+    }
 
-		// Test secure detected
-		$this->assertEquals('https://'.$host.$path, $this->config->base_url());
+    /**
+     * Test load() with non-existent file
+     */
+    public function testLoadNone()
+    {
+        global $XY;
 
-		// Restore server vars
-		if ($old_host === NULL) unset($_SERVER['HTTP_HOST']);
-		else $_SERVER['HTTP_HOST'] = $old_host;
-		if ($old_script === NULL) unset($_SERVER['SCRIPT_NAME']);
-		else $_SERVER['SCRIPT_NAME'] = $old_script;
-		if ($old_https === NULL) unset($_SERVER['HTTPS']);
-		else $_SERVER['HTTPS'] = $old_https;
-	}
+        // Set up args
+        $name = 'figment';
 
-	// --------------------------------------------------------------------
+        // Mock Xylophone and Config and set up calls
+        $XY = $this->getMock('Xylophone\core\Xylophone', array(), array(), '', false);
+        $config = $this->getMock('Xylophone\core\Config', array('get'), array(), '', false);
+        $config->expects($this->once())->method('get')->
+            with($this->equalTo($name.'.php'), $this->equalTo('config'))->
+            will($this->returnValue(false));
+        $XY->expects($this->once())->method('showError')->
+            with($this->equalTo('The configuration file '.$name.'.php does not exist.'))->
+            will($this->throwException(new InvalidArgumentException));
 
-	public function test_site_url()
-	{
-		$base_url = $this->cfg['base_url'];
-		$index_page = $this->cfg['index_page'];
-		$this->assertEquals($base_url.$index_page, $this->config->site_url());
+        // Call load()
+        $this->setExpectedException('InvalidArgumentException');
+        $config->load($name);
+    }
 
-		$old_base = $this->config->item('base_url');
-		$this->config->set_item('base_url', '');
+    /**
+     * Test load() with graceful non-existent file
+     */
+    public function testLoadNoneGraceful()
+    {
+        // Set up args
+        $name1 = 'exists';
+        $name2 = 'graceful';
 
-		$q_string = $this->config->item('enable_query_strings');
-		$this->config->set_item('enable_query_strings', FALSE);
+        // Mock Config and set up calls
+        $config = $this->getMock('Xylophone\core\Config', array('get'), array(), '', false);
+        $config->expects($this->once())->method('get')->
+            with($this->equalTo($name2.'.php'), $this->equalTo('config'))->
+            will($this->returnValue(false));
 
-		$uri = 'test';
-		$uri2 = '1';
-		$this->assertEquals($index_page.'/'.$uri, $this->config->site_url($uri));
-		$this->assertEquals($index_page.'/'.$uri.'/'.$uri2, $this->config->site_url(array($uri, $uri2)));
+        // Set first file as loaded
+        $config->is_loaded[] = $name1;
 
-		$suffix = 'ing';
-		$this->config->set_item('url_suffix', $suffix);
+        // Call load() and verify results
+        $this->assertFalse($config->load(array($name1, $name2), false, true));
+        $this->assertEquals(array($name1), $config->is_loaded);
+    }
 
-		$arg = 'pass';
-		$this->assertEquals($index_page.'/'.$uri.$suffix, $this->config->site_url($uri));
-		$this->assertEquals($index_page.'/'.$uri.$suffix.'?'.$arg, $this->config->site_url($uri.'?'.$arg));
+    /**
+     * Test load() with bad file
+     */
+    public function testLoadBad()
+    {
+        global $XY;
 
-		$this->config->set_item('url_suffix', FALSE);
-		$this->config->set_item('enable_query_strings', TRUE);
+        // Set up args
+        $name = 'badcfg';
 
-		$this->assertEquals($index_page.'?'.$uri, $this->config->site_url($uri));
-		$this->assertEquals($index_page.'?0='.$uri.'&1='.$uri2, $this->config->site_url(array($uri, $uri2)));
+        // Mock Xylophone and Config and set up calls
+        $XY = $this->getMock('Xylophone\core\Xylophone', array(), array(), '', false);
+        $config = $this->getMock('Xylophone\core\Config', array('get'), array(), '', false);
+        $config->expects($this->once())->method('get')->
+            with($this->equalTo($name.'.php'), $this->equalTo('config'))->
+            will($this->returnValue('/some/bad/path'));
+        $XY->expects($this->once())->method('showError')->
+            with($this->equalTo('Your '.$name.'.php file does not appear to contain a valid configuration array.'))->
+            will($this->throwException(new InvalidArgumentException));
 
-		$this->config->set_item('base_url', $old_base);
+        // Call load()
+        $this->setExpectedException('InvalidArgumentException');
+        $config->load($name);
+    }
 
-		$this->assertEquals($base_url.$index_page.'?'.$uri, $this->config->site_url($uri));
+    /**
+     * Test load() with graceful bad file
+     */
+    public function testLoadBadGraceful()
+    {
+        // Set up args
+        $name = 'badgrace';
 
-		// back to home base
-		$this->config->set_item('enable_query_strings', $q_string);
-	}
+        // Mock Config and set up calls
+        $config = $this->getMock('Xylophone\core\Config', array('get'), array(), '', false);
+        $config->expects($this->once())->method('get')->with($this->equalTo($name.'.php'), $this->equalTo('config'))->
+            will($this->returnValue('/bad/file/path'));
 
-	// --------------------------------------------------------------------
+        // Call load() and verify results
+        $this->assertFalse($config->load($name, false, true));
+    }
 
-	public function test_system_url()
-	{
-		$this->assertEquals($this->cfg['base_url'].'system/', $this->config->system_url());
-	}
+    /**
+     * Test get()
+     */
+    public function testGet()
+    {
+        // Set up args
+        $file = 'somecfg.php';
+        $name = 'config';
+        $retval = array('key' => 'val');
 
-	// --------------------------------------------------------------------
+        // Mock Config and set up call
+        $config = $this->getMock('Xylophone\core\Config', array('getExtra'), array(), '', false);
+        $config->expects($this->once())->method('getExtra')->
+            with($this->equalTo($file), $this->equalTo($name), $this->isFalse())->
+            will($this->returnValue($retval));
 
-	public function test_load()
-	{
-		// Test regular load
-		$file = 'test.php';
-		$key = 'testconfig';
-		$val = 'my_value';
-		$cfg = array($key => $val);
-		$this->ci_vfs_create($file, '<?php $config = '.var_export($cfg, TRUE).';', $this->ci_app_root, 'config');
-		$this->assertTrue($this->config->load($file));
-		$this->assertEquals($val, $this->config->item($key));
+        // Call get()
+        $config->get($file, $name);
+    }
 
-		// Test reload - value should not change
-		$val2 = 'new_value';
-		$cfg = array($key => $val2);
-		$this->ci_vfs_create($file, '<?php $config = '.var_export($cfg, TRUE).';', $this->ci_app_root, 'config');
-		$this->assertTrue($this->config->load($file));
-		$this->assertEquals($val, $this->config->item($key));
+    /**
+     * Test getExtra() with no file
+     */
+    public function testGetExtraNone()
+    {
+        global $XY;
 
-		// Test section load
-		$file = 'secttest';
-		$cfg = array(
-			'one' => 'prime',
-			'two' => 2,
-			'three' => true
-		);
-		$this->ci_vfs_create($file.'.php', '<?php $config = '.var_export($cfg, TRUE).';', $this->ci_app_root, 'config');
-		$this->assertTrue($this->config->load($file, TRUE));
-		$this->assertEquals($cfg, $this->config->item($file));
+        // Set up VFS
+        $this->vfsInit();
 
-		// Test section merge
-		$cfg2 = array(
-			'three' => 'tres',
-			'number' => 42,
-			'letter' => 'Z'
-		);
-		$pkg_dir = 'package';
-		$this->ci_vfs_create($file.'.php', '<?php $config = '.var_export($cfg2, TRUE).';', $this->ci_app_root,
-			array($pkg_dir, 'config'));
-		$this->config->_config_paths[] = $this->ci_vfs_path($pkg_dir.'/', APPPATH);
-		$this->assertTrue($this->config->load($file, TRUE));
-		$this->assertEquals(array_merge($cfg, $cfg2), $this->config->item($file));
-		array_pop($this->config->_config_paths);
+        // Mock Xylophone and Config
+        $XY = new stdClass();
+        $config = $this->getMock('Xylophone\core\Config', null, array(), '', false);
 
-		// Test graceful fail of invalid file
-		$file = 'badfile';
-		$this->ci_vfs_create($file, '', $this->ci_app_root, 'config');
-		$this->assertFalse($this->config->load($file, FALSE, TRUE));
+        // Set empty environment and config paths
+        $XY->environment = '';
+        $XY->config_paths = array($this->vfs_app_path.'/');
 
-		// Test regular fail of invalid file
-		$this->setExpectedException(
-			'RuntimeException',
-			'CI Error: Your '.$this->ci_vfs_path('config/'.$file.'.php', APPPATH).
-				' file does not appear to contain a valid configuration array.'
-		);
-		$this->assertNull($this->config->load($file));
-	}
+        // Call getExtra() with non-existent file and confirm failure
+        $extras = false;
+        $this->assertFalse($config->getExtra('dummy', 'config', $extras));
+    }
 
-	// --------------------------------------------------------------------
+    /**
+     * Test getExtra() with no array
+     */
+    public function testGetExtraEmpty()
+    {
+        global $XY;
 
-	public function test_load_nonexistent()
-	{
-		// Test graceful fail of nonexistent file
-		$this->assertFalse($this->config->load('not_config_file', FALSE, TRUE));
+        // Set up args
+        $file = 'empty.php';
+        $extras = false;
 
-		// Test regular fail
-		$file = 'absentia';
-		$this->setExpectedException(
-			'RuntimeException',
-			'CI Error: The configuration file '.$file.'.php does not exist.'
-		);
-		$this->assertNull($this->config->load($file));
-	}
+        // Set up VFS and make file
+        $this->vfsInit();
+        $this->vfsCreate('config/'.$file, '<?php $foo = \'bar\';', $this->vfs_app_dir);
 
+        // Mock Xylophone and Config
+        $XY = new stdClass();
+        $config = $this->getMock('Xylophone\core\Config', null, array(), '', false);
+
+        // Set empty environment and config path
+        $XY->environment = '';
+        $XY->config_paths = array($this->vfs_app_path.'/');
+
+        // Call getExtra() and confirm result
+        $this->assertEquals($this->vfs_app_path.'/config/'.$file, $config->getExtra($file, 'config', $extras));
+    }
+
+    /**
+     * Test getExtra() with no name
+     */
+    public function testGetExtraNoName()
+    {
+        global $XY;
+
+        // Set up args
+        $file = 'global';
+        $key = 'warming';
+        $val = 'trend';
+        $extras = false;
+
+        // Set up VFS and make file
+        $this->vfsInit();
+        $this->vfsCreate('config/'.$file.'.php', '<?php $GLOBALS[\''.$key.'\'] = \''.$val.'\';', $this->vfs_app_dir);
+
+        // Mock Xylophone and Config
+        $XY = new stdClass();
+        $config = $this->getMock('Xylophone\core\Config', null, array(), '', false);
+
+        // Set empty environment and config path
+        $XY->environment = '';
+        $XY->config_paths = array($this->vfs_app_path.'/');
+
+        // Call getExtra() and confirm result
+        $this->assertTrue($config->getExtra($file, '', $extras));
+        $this->assertArrayHasKey($key, $GLOBALS);
+        $this->assertEquals($val, $GLOBALS[$key]);
+    }
+
+    /**
+     * Test getExtra()
+     */
+    public function testGetExtra()
+    {
+        global $XY;
+
+        // Set up args
+        $file = 'vars.php';
+        $cfg1 = array('one' => '1', 'two' => '3');
+        $cfg2 = array('two' => '2');
+        $result = array('one' => '1', 'two' => '2');
+        $key1 = 'pickme';
+        $key2 = 'andme';
+        $nokey = '_notme';
+        $val1 = 'first';
+        $val2 = 'second';
+        $noval = 'ignore';
+        $extras = array();
+
+        // Make file contents
+        $content1 = '<?php $config = '.var_export($cfg1, true).'; $'.$key1.' = \''.$val1.'\';';
+        $content2 = '<?php $config = '.var_export($cfg2, true).'; $'.$key2.' = \''.$val2.'\'; '.
+            '$'.$nokey.' = \''.$noval.'\';';
+
+        // Set up VFS and make files
+        $this->vfsInit();
+        $tp_dir = $this->vfsMkdir('third-party', $this->vfs_base_dir);
+        $this->vfsCreate('config/'.$file, $content1, $tp_dir);
+        $this->vfsCreate('config/'.$file, $content2, $this->vfs_app_dir);
+
+        // Mock Xylophone and Config
+        $XY = new stdClass();
+        $config = $this->getMock('Xylophone\core\Config', null, array(), '', false);
+
+        // Set empty environment and config paths
+        $XY->environment = '';
+        $XY->config_paths = array($tp_dir->url().'/', $this->vfs_app_path.'/');
+
+        // Call getExtra() and confirm result
+        $this->assertEquals($result, $config->getExtra($file, 'config', $extras));
+        $this->assertEquals(array($key1 => $val1, $key2 => $val2), $extras);
+    }
+
+    /**
+     * Test item() fail
+     */
+    public function testItemFail()
+    {
+        // Mock Config
+        $config = $this->getMock('Xylophone\core\Config', null, array(), '', false);
+
+        // Call item() and confirm missing item fail
+        $this->assertNull($config->item('missing'));
+    }
+
+    /**
+     * Test item()
+     */
+    public function testItem()
+    {
+        // Set args
+        $key = 'findme';
+        $val = 'yay';
+
+        // Mock Config and set item
+        $config = $this->getMock('Xylophone\core\Config', null, array(), '', false);
+        $config->config[$key] = $val;
+
+        // Call item() and confirm result
+        $this->assertEquals($val, $config->item($key));
+    }
+
+    /**
+     * Test item() fail with index
+     */
+    public function testItemIndexFail()
+    {
+        // Set arg
+        $key = 'empty';
+
+        // Mock Config and set item
+        $config = $this->getMock('Xylophone\core\Config', null, array(), '', false);
+        $config->config[$key] = array();
+
+        // Call item() and confirm missing item index fail
+        $this->assertNull($config->item($key, 'nothere'));
+    }
+
+    /**
+     * Test item() with index
+     */
+    public function testItemIndex()
+    {
+        // Set args
+        $key1 = 'group';
+        $key2 = 'member';
+        $val = 'ship';
+
+        // Mock Config and set item
+        $config = $this->getMock('Xylophone\core\Config', null, array(), '', false);
+        $config->config[$key1] = array($key2 => $val);
+
+        // Call item() and confirm item index
+        $this->assertEquals($val, $config->item($key2, $key1));
+    }
+
+    /**
+     * Test setItem()
+     */
+    public function testSetItem()
+    {
+        // Set up args
+        $key1 = 'single';
+        $val1 = 'value';
+        $key2 = 'multi';
+        $val2 = array($key2 => array('gets' => 'newval', 'newkey' => 'added'));
+        $pre2 = array('stays' => 'same', 'gets' => 'replaced');
+        $result = array('stays' => 'same', 'gets' => 'newval', 'newkey' => 'added');
+
+        // Mock Config and set previous value
+        $config = $this->getMock('Xylophone\core\Config', null, array(), '', false);
+        $config[$key2] = $pre2;
+
+        // Call setItem() and confirm results
+        $config->setItem($key1, $val1);
+        $this->assertArrayHasKey($key1, $config->config);
+        $this->assertEquals($val1, $config->config[$key1]);
+        $config->setItem($val2);
+        $this->assertEquals($result, $config->config[$key2]);
+    }
+
+    /**
+     * Test slashItem() fail
+     */
+    public function testSlashItemFail()
+    {
+        // Mock Config
+        $config = $this->getMock('Xylophone\core\Config', null, array(), '', false);
+
+        // Call slashItem() and confirm missing item fail
+        $this->assertNull($config->slashItem('missing'));
+    }
+
+    /**
+     * Test slashItem() with empty value
+     */
+    public function testSlashItemEmpty()
+    {
+        // Set arg
+        $key = 'blank';
+
+        // Mock Config and set item
+        $config = $this->getMock('Xylophone\core\Config', null, array(), '', false);
+        $config->config[$key] = '   ';
+
+        // Call slashItem() and confirm result
+        $this->assertEmpty($config->slashItem($key));
+    }
+
+    /**
+     * Test slashItem()
+     */
+    public function testSlashItem()
+    {
+        // Set args
+        $key = 'path';
+        $val = '/fake/dir';
+
+        // Mock Config and set item
+        $config = $this->getMock('Xylophone\core\Config', null, array(), '', false);
+        $config->config[$key] = $val;
+
+        // Call slashItem() and confirm results
+        $this->assertEquals($val.'/', $config->slashItem($key));
+        $config->config[$key] = $val.'/';
+        $this->assertEquals($val.'/', $config->slashItem($key));
+    }
+
+    /**
+     * Test siteUrl()
+     */
+    public function testSiteUrl()
+    {
+        // Set up args
+        $base = 'http://testserver.net/testapp/';
+        $index = 'main';
+
+        // Mock Config and set up calls
+        $config = $this->getMock('Xylophone\core\Config', array('slashitem', 'item'), array(), '', false);
+        $config->expects($this->once())->method('slashItem')->with($this->equalTo('base_url'))->
+            will($this->returnValue($base));
+        $config->expects($this->once())->method('item')->with($this->equalTo('index_page'))->
+            will($this->returnValue($index));
+
+        // Call siteUrl() and verify result
+        $this->assertEquals($base.$index, $config->siteUrl());
+    }
+
+    /**
+     * Test siteUrl() with a URI string and a URL suffix
+     */
+    public function testSiteUrlUriSuffix()
+    {
+        // Set up args
+        $base = 'http://myserver.com/someapp/';
+        $index = 'home';
+        $uri = 'some/args';
+        $suffix = 'ctlr';
+
+        // Mock Config and set up calls
+        $config = $this->getMock('Xylophone\core\Config', array('slashitem', 'item', 'uriString'),
+            array(), '', false);
+        $config->expects($this->at(0))->method('slashItem')->with($this->equalTo('base_url'))->
+            will($this->returnValue($base));
+        $config->expects($this->at(1))->method('uriString')->with($this->equalTo($uri))->
+            will($this->returnArgument(0));
+        $config->expects($this->at(2))->method('item')->with($this->equalTo('enable_query_strings'))->
+            will($this->returnValue(false));
+        $config->expects($this->at(3))->method('slashItem')->with($this->equalTo('index_page'))->
+            will($this->returnValue($index));
+        $config->config['url_suffix'] = $suffix;
+
+        // Call siteUrl() and verify result
+        $this->assertEquals($base.$index.$uri.$suffix, $config->siteUrl($uri));
+    }
+
+    /**
+     * Test siteUrl() with a split URI string and a URL suffix
+     */
+    public function testSiteUrlSuffixUri()
+    {
+        // Set up args
+        $base = 'http://test.org/myapp/';
+        $index = 'index/';
+        $dir = 'sub';
+        $query = '?arg';
+        $uri = $dir.$query;
+        $suffix = '.php';
+
+        // Mock Config and set up calls
+        $config = $this->getMock('Xylophone\core\Config', array('slashitem', 'item', 'uriString'),
+            array(), '', false);
+        $config->expects($this->at(0))->method('slashItem')->with($this->equalTo('base_url'))->
+            will($this->returnValue($base));
+        $config->expects($this->at(1))->method('uriString')->with($this->equalTo($uri))->
+            will($this->returnArgument(0));
+        $config->expects($this->at(2))->method('item')->with($this->equalTo('enable_query_strings'))->
+            will($this->returnValue(false));
+        $config->expects($this->at(3))->method('slashItem')->with($this->equalTo('index_page'))->
+            will($this->returnValue($index));
+        $config->config['url_suffix'] = $suffix;
+
+        // Call siteUrl() and verify result
+        $this->assertEquals($base.$index.$dir.$suffix.$query, $config->siteUrl($uri));
+    }
+
+    /**
+     * Test siteUrl() with a URI string, a protocol, and query strings
+     */
+    public function testSiteUrlProtoQuery()
+    {
+        // Set up args
+        $proto1 = 'http';
+        $proto2 = 'https';
+        $base = '://testing.us/somemore/';
+        $index = 'with';
+        $uri = '?this&that';
+
+        // Mock Config and set up calls
+        $config = $this->getMock('Xylophone\core\Config', array('slashitem', 'item', 'uriString'),
+            array(), '', false);
+        $config->expects($this->at(0))->method('slashItem')->with($this->equalTo('base_url'))->
+            will($this->returnValue($proto1.$base));
+        $config->expects($this->at(1))->method('uriString')->with($this->equalTo($uri))->
+            will($this->returnArgument(0));
+        $config->expects($this->at(2))->method('item')->with($this->equalTo('enable_query_strings'))->
+            will($this->returnValue(true));
+        $config->expects($this->at(3))->method('item')->with($this->equalTo('index_page'))->
+            will($this->returnValue($index));
+
+        // Call siteUrl() and verify result
+        $this->assertEquals($proto2.$base.$index.$uri, $config->siteUrl($uri, $proto2));
+    }
+
+    /**
+     * Test baseUrl()
+     */
+    public function testBaseUrl()
+    {
+        // Set up args
+        $proto1 = 'https';
+        $proto2 = 'http';
+        $base = '://localhost/localtest/';
+        $uri = 'foo/bar';
+
+        // Mock Config and set up calls
+        $config = $this->getMock('Xylophone\core\Config', array('slashItem', 'item'), array(), '', false);
+        $config->expects($this->once())->method('slashItem')->with($this->equalTo('base_url'))->
+            will($this->returnValue($proto1.$base));
+        $config->expects($this->once())->method('item')->with($this->equalTo('enable_query_strings'))->
+            will($this->returnValue(false));
+
+        // Call baseUrl() and verify reult
+        $this->assertEquals($proto2.$base.$uri, $config->baseUrl('/'.$uri.'/', $proto2));
+    }
+
+    /**
+     * Test baseUrl() with query strings
+     */
+    public function testBaseUrlQuery()
+    {
+        // Set up args
+        $base = 'http://localhost/querytest/';
+        $key1 = 'first';
+        $val1 = 'arg';
+        $key2 = 'second';
+        $val2 = 'param';
+        $uri = array($key1 => $val1, $key2 => $val2);
+
+        // Mock Config and set up calls
+        $config = $this->getMock('Xylophone\core\Config', array('slashItem', 'item'), array(), '', false);
+        $config->expects($this->once())->method('slashItem')->with($this->equalTo('base_url'))->
+            will($this->returnValue($base));
+        $config->expects($this->once())->method('item')->with($this->equalTo('enable_query_strings'))->
+            will($this->returnValue(true));
+
+        // Call baseUrl() and verify reult
+        $this->assertEquals($base.'?'.$key1.'='.$val1.'&'.$key2.'='.$val2, $config->baseUrl($uri));
+    }
+
+    /**
+     * Test offsetExists()
+     */
+    public function testOffsetExists()
+    {
+        // Set args
+        $key = 'good';
+
+        // Mock Config and set item
+        $config = $this->getMock('Xylophone\core\Config', null, array(), '', false);
+        $config->config[$key] = true;
+
+        // Test via array access
+        $this->assertTrue(isset($config[$key]));
+        $this->assertFalse(isset($config['bad']));
+    }
+
+    /**
+     * Test offsetGet()
+     */
+    public function testOffsetGet()
+    {
+        // Set args
+        $key = 'real';
+        $val = 'value';
+
+        // Mock Config and set item
+        $config = $this->getMock('Xylophone\core\Config', null, array(), '', false);
+        $config->config[$key] = $val;
+
+        // Test via array access
+        $this->assertEquals($val, $config[$key]);
+        $this->assertNull($config['figment']);
+    }
+
+    /**
+     * Test offsetSet()
+     */
+    public function testOffsetSet()
+    {
+        // Set args
+        $number = 0;
+        $key = 'foo';
+        $val = 'bar';
+
+        // Mock Config
+        $config = $this->getMock('Xylophone\core\Config', null, array(), '', false);
+
+        // Test via array access
+        $config[$number] = 'nothing';
+        $this->assertArrayNotHasKey($number, $config->config);
+        $config[$key] = $val;
+        $this->assertArrayHasKey($key, $config->config);
+        $this->assertEquals($val, $config->config[$key]);
+    }
+
+    /**
+     * Test offsetUnset()
+     */
+    public function testOffsetUnset()
+    {
+        // Set arg
+        $key = 'nowyouseeme';
+
+        // Mock Config and set item
+        $config = $this->getMock('Xylophone\core\Config', null, array(), '', false);
+        $config->config[$key] = 'nowyoudont';
+
+        // Test via array access
+        unset($config[$key]);
+        $this->assertArrayNotHasKey($key, $config->config);
+    }
 }
+
