@@ -87,10 +87,13 @@ class XylophoneTest extends XyTestCase
         // manually include source file and mock source
         include_once BASEPATH.'system/core/Xylophone.php';
         include_once TESTPATH.'Mocks/core/Xylophone.php';
+    }
 
-        // Default to skipping handlers
-        Mocks\core\Xylophone::$skip_handlers = true;
-
+    /**
+     * Load our virtual filesystem
+     */
+    private function loadFilesystem()
+    {
         // Initialize our VFS
         $this->vfsInit();
 
@@ -126,7 +129,7 @@ class XylophoneTest extends XyTestCase
         $this->setExpectedException('Xylophone\core\ExitException',
             'Your application folder path does not appear to be set correctly.'.
             ' Please fix it in the following file: '.basename($_SERVER['PHP_SELF']), EXIT_XY);
-        $XY = Mocks\core\Xylophone::instance($init);
+        Xylophone\core\Xylophone::instance($init);
     }
 
     /**
@@ -134,13 +137,16 @@ class XylophoneTest extends XyTestCase
      */
     public function testInstanceNsFail()
     {
+        // Load VFS
+        $this->vfsInit();
+
         // Call instance with a bad (missing) namespace
         $init = array('environment' => 'production', 'ns_paths' => array('' => $this->vfs_app_path, 'badpath/'));
         $this->setExpectedException('Xylophone\core\ExitException',
             'The global namespace is reserved for application classes. '.
             'Please specify a namespace for your additional path in the following file: '.
             basename($_SERVER['PHP_SELF']), EXIT_XY);
-        $XY = Mocks\core\Xylophone::instance($init);
+        Xylophone\core\Xylophone::instance($init);
     }
 
     /**
@@ -148,13 +154,16 @@ class XylophoneTest extends XyTestCase
      */
     public function testInstanceNsPathFail()
     {
+        // Load VFS
+        $this->vfsInit();
+
         // Call instance with a bad ns path
         $ns = 'BadSpace';
         $init = array('environment' => 'production', 'ns_paths' => array('' => $this->vfs_app_path, $ns => 'badpath/'));
         $this->setExpectedException('Xylophone\core\ExitException',
             'The "'.$ns.'" namespace path does not appear to be set correctly.'.
             ' Please fix it in the following file: '.basename($_SERVER['PHP_SELF']), EXIT_XY);
-        $XY = Mocks\core\Xylophone::instance($init);
+        Xylophone\core\Xylophone::instance($init);
     }
 
     /**
@@ -167,17 +176,15 @@ class XylophoneTest extends XyTestCase
         // Call instance to get a new instance, skipping tune()
         // We pass the Mocks namespace so our mock overload gets used
         // This will be the instance for the rest of the tests below
-        Mocks\core\Xylophone::$skip_init = true;
+        Mocks\core\Xylophone::$skip_tune = true;
         $init = array('ns_paths' => array('Mocks' => TESTPATH.'Mocks/'));
-        $XY = Mocks\core\Xylophone::instance($init);
+        $XY = Xylophone\core\Xylophone::instance($init);
         $this->assertInstanceOf('Xylophone\core\Xylophone', $XY);
 
         // Call again and check for same object
-        $XY2 = Mocks\core\Xylophone::instance();
-        $this->assertEquals($XY, $XY2);
-
-        // Say we're not on 5.4 - some things are easier that way
-        $XY->is_php['5.4'] = false;
+        $xy = Xylophone\core\Xylophone::instance();
+        $this->assertSame($XY, $xy);
+        Mocks\core\Xylophone::$skip_tune = false;
 
         // Return our instance for use later
         return $XY;
@@ -185,14 +192,17 @@ class XylophoneTest extends XyTestCase
 
     /**
      * Test tune() defaults
-     *
-     * @depends testInstance
-     * @return  object  Mock Xylophone instance
      */
-    public function testTuneDefault($XY)
+    public function testTuneDefault()
     {
+        // Mock Xylophone and set up calls
+        $XY = $this->getMock('Xylophone\core\Xylophone', array('isPhp', 'addViewPath', 'registerHandlers'),
+            array(), '', false);
+        $XY->expects($this->once())->method('isPhp')->with($this->equalTo('5.4'))->will($this->returnValue(true));
+        $XY->expects($this->once())->method('addViewPath')->with($this->equalTo(array('')));
+        $XY->expects($this->once())->method('registerHandlers');
+
         // Call tune with empty parameters
-        Mocks\core\Xylophone::$skip_init = false;
         $XY->tune(array());
 
         // Check environment and base and system paths
@@ -206,26 +216,24 @@ class XylophoneTest extends XyTestCase
         $this->assertEquals('', $XY->app_ns);
         $this->assertEquals($app_path, $XY->app_path);
 
-        // Check config and view paths
+        // Check config paths
         $this->assertEquals(array($app_path), $XY->config_paths);
-        $this->assertEquals(array('' => $app_path.'views/'), $XY->view_paths);
 
         // Check override flags
         $this->assertFalse($XY->override_core);
         $this->assertFalse($XY->library_search);
-
-        // Return instance for reinitialization
-        return $XY;
     }
 
     /**
      * Test tune()
      *
-     * @depends testTuneDefault
      * @return  object  Mock Xylophone instance
      */
-    public function testTune($XY)
+    public function testTune()
     {
+        // Load the filesystem
+        $this->loadFilesystem();
+
         // Set up test parameter vars
         $env = 'development';
         $basedir = $this->vfs_base_path.'/';
@@ -235,6 +243,13 @@ class XylophoneTest extends XyTestCase
         $appns = '';
         $nspath = array($appns => $appdir, $this->share_ns => $shdir, 'Mocks' => TESTPATH.'Mocks/');
         $appvwnm = 'views/';
+
+        // Mock Xylophone and set up calls
+        $XY = $this->getMock('Xylophone\core\Xylophone', array('isPhp', 'addViewPath', 'registerHandlers'),
+            array(), '', false);
+        $XY->expects($this->once())->method('isPhp')->with($this->equalTo('5.4'))->will($this->returnValue(true));
+        $XY->expects($this->once())->method('addViewPath')->with($this->equalTo(array($appvwnm)));
+        $XY->expects($this->once())->method('registerHandlers');
 
         // Call tune with parameters
         $init = array(
@@ -259,9 +274,8 @@ class XylophoneTest extends XyTestCase
         $this->assertEquals($appns, $XY->app_ns);
         $this->assertEquals($appdir, $XY->app_path);
 
-        // Check config and view paths
+        // Check config paths
         $this->assertEquals($XY->config_paths, array($shdir, $appdir));
-        $this->assertEquals(array($appvwnm => $appdir.$appvwnm), $XY->view_paths);
 
         // Check override flags
         $this->assertFalse($XY->override_core);
@@ -273,24 +287,51 @@ class XylophoneTest extends XyTestCase
 
     /**
      * Test autoloader() fail
-     *
-     * @depends testTune
      */
-    public function testAutoloaderFail($XY)
+    public function testAutoloaderFail()
     {
+        // Load vfs
+        $this->vfsinit();
+
+        // Mock xylophone and set system path
+        $XY = $this->getmock('xylophone\core\xylophone', null, array(), '', false);
+        $XY->system_path = $this->vfs_sys_path.'/';
+
         // Try to load a non-existent class
-        $class = 'Xylophone\core\BadClass';
-        $this->setExpectedException('\Xylophone\core\AutoloadException', 'Could not find class "'.$class.'"');
+        $class = 'Xylophone\core\badclass';
+        $this->setExpectedException('\Xylophone\Core\AutoloadException', 'Could not find class "'.$class.'"');
+        $XY->autoloader($class);
+    }
+
+    /**
+     * Test autoloader() with its own exception
+     */
+    public function testAutoloaderException()
+    {
+        // Load vfs
+        $this->vfsinit();
+
+        // Mock xylophone and set system path
+        $XY = $this->getmock('xylophone\core\xylophone', null, array(), '', false);
+        $XY->system_path = $this->vfs_sys_path.'/';
+
+        // Try to load exception without file
+        $class = 'Xylophone\core\AutoloadException';
         $XY->autoloader($class);
     }
 
     /**
      * Test autoloader()
-     *
-     * @depends testTune
      */
-    public function testAutoloader($XY)
+    public function testAutoloader()
     {
+        // Load the filesystem
+        $this->loadFilesystem();
+
+        // Mock Xylophone and set ns paths
+        $XY = $this->getMock('Xylophone\core\Xylophone', null, array(), '', false);
+        $XY->ns_paths = array('' => $this->vfs_app_path.'/', $this->share_ns => $this->share_path.'/');
+
         // Create dummy class file
         $dir = 'libraries';
         $file = 'TestLib';
@@ -304,11 +345,16 @@ class XylophoneTest extends XyTestCase
 
     /**
      * Test autoloader() with a hint
-     *
-     * @depends testTune
      */
-    public function testAutoloaderHint($XY)
+    public function testAutoloaderHint()
     {
+        // Load VFS
+        $this->vfsInit();
+
+        // Mock Xylophone and set ns paths
+        $XY = $this->getMock('Mocks\core\Xylophone', null, array(), '', false);
+        $XY->ns_paths = array('' => $this->vfs_app_path.'/');
+
         // Create dummy class file
         $dir = 'core';
         $file = 'Hint';
@@ -319,18 +365,16 @@ class XylophoneTest extends XyTestCase
         $this->expectOutputString($output);
         $XY->loader_hint = $dir;
         $XY->autoloader($file);
-
-        // Clean up
-        $XY->loader_hint = '';
     }
 
     /**
      * Test loadClass() fail
-     *
-     * @depends testTune
      */
-    public function testLoadClassFail($XY)
+    public function testLoadClassFail()
     {
+        // Mock Xylophone
+        $XY = $this->getMock('Xylophone\core\Xylophone', null, array(), '', false);
+
         // Make a class that emulates the autoloader not-found behavior
         $hint = 'core';
         $class = 'MissingClass';
@@ -342,11 +386,16 @@ class XylophoneTest extends XyTestCase
 
     /**
      * Test loadClass() with a global class
-     *
-     * @depends testTune
      */
-    public function testLoadClassGlobal($XY)
+    public function testLoadClassGlobal()
     {
+        // Mock Xylophone
+        $XY = $this->getMock('Mocks\core\Xylophone', null, array(), '', false);
+
+        // Enable library search and set ns_paths
+        $XY->library_search = true;
+        $XY->ns_paths = array('' => '/dont/need/path/');
+
         // Make a global class that takes one param
         $class = 'GlobalClass';
         $member = 'passed';
@@ -366,11 +415,16 @@ class XylophoneTest extends XyTestCase
 
     /**
      * Test loadClass() with a namespace
-     *
-     * @depends testTune
      */
-    public function testLoadClassNs($XY)
+    public function testLoadClassNs()
     {
+        // Load the filesystem
+        $this->loadFilesystem();
+
+        // Mock Xylophone and set ns paths
+        $XY = $this->getMock('Xylophone\core\Xylophone', null, array(), '', false);
+        $XY->ns_paths = array('' => $this->vfs_app_path.'/', $this->share_ns => $this->share_path.'/');
+
         // Make a class that takes two ctor params
         $hint = 'models';
         $class = 'SharedClass';
@@ -393,11 +447,12 @@ class XylophoneTest extends XyTestCase
 
     /**
      * Test callController() with a bad class
-     *
-     * @depends testTune
      */
-    public function testCallControllerFail($XY)
+    public function testCallControllerFail()
     {
+        // Mock Xylophone
+        $XY = $this->getMock('Xylophone\core\Xylophone', null, array(), '', false);
+
         // Pass a non-existent class and an invalid route stack and confirm failure
         $this->assertFalse($XY->callController('BadClass'));
         $this->assertFalse($XY->callController(array('method' => 'index')));
@@ -405,11 +460,13 @@ class XylophoneTest extends XyTestCase
 
     /**
      * Test callController() with a bad method
-     *
-     * @depends testTune
      */
-    public function testCallControllerBadMethod($XY)
+    public function testCallControllerBadMethod()
     {
+        // Mock Xylophone and set up call
+        $XY = $this->getMock('Xylophone\core\Xylophone', array('isCallable'), array(), '', false);
+        $XY->expects($this->any())->method('isCallable')->will($this->returnValue(false));
+
         // Create dummy class with no index method
         $class = 'EmptyClass';
         $this->makeClass($class, 'none');
@@ -420,20 +477,22 @@ class XylophoneTest extends XyTestCase
 
         // Call class (with default 'index') and confirm failure
         $this->assertFalse($XY->callController(array('class' => $class)));
-
-        // Clean up
-        unset($XY->$name);
     }
 
     /**
      * Test callController() with a remap method
-     *
-     * @depends testTune
      */
-    public function testCallControllerRemap($XY)
+    public function testCallControllerRemap()
     {
-        // Create controller with remap method
+        // Set up args
         $class = 'RemapCtlr';
+
+        // Mock Xylophone and set up call
+        $XY = $this->getMock('Xylophone\core\Xylophone', array('isCallable'), array(), '', false);
+        $XY->expects($this->once())->method('isCallable')->with($this->equalTo($class), $this->equalTo('xyRemap'))->
+            will($this->returnValue(true));
+
+        // Create controller with remap method
         $member1 = 'passed1';
         $member2 = 'passed2';
         $this->makeClass($class, 'xyRemap', array($member1, $member2));
@@ -453,32 +512,33 @@ class XylophoneTest extends XyTestCase
         $this->assertEquals($method, $XY->$name->$member1);
         $this->assertObjectHasAttribute($member2, $XY->$name);
         $this->assertEquals($args, $XY->$name->$member2);
-
-        // Clean up
-        unset($XY->$name);
     }
 
     /**
      * Test callController() with output capture
-     *
-     * @depends testTune
      */
-    public function testCallControllerOutput($XY)
+    public function testCallControllerOutput()
     {
-        // Create controller with remap method
+        // Set up args
         $class = 'TestOutCtlr';
         $method = 'makeOut';
+        $output = 'My Controller Made This';
+
+        // Mock Xylophone and Output and set up calls
+        $XY = $this->getMock('Xylophone\core\Xylophone', array('isCallable'), array(), '', false);
+        $XY->expects($this->at(0))->method('isCallable')->with($this->equalTo($class), $this->equalTo('xyRemap'))->
+            will($this->returnValue(false));
+        $XY->expects($this->at(1))->method('isCallable')->with($this->equalTo($class), $this->equalTo($method))->
+            will($this->returnValue(true));
+        $XY->output = $this->getMock('Xylophone\core\Output', array('stackPush', 'stackPop'), array(), '', false);
+        $XY->output->expects($this->once())->method('stackPush');
+        $XY->output->expects($this->once())->method('stackPop')->will($this->returnValue($output));
+
+        // Create controller and attach
+        $name = strtolower($class);
         $member = 'passed';
         $this->makeClass($class, $method, array($member));
-
-        // Attach instance
-        $name = strtolower($class);
         $XY->$name = new $class();
-
-        // Create mock Output class with stack calls
-        $output = 'My Controller Made This';
-        $XY->output = $this->getMock('Xylophone\core\Output', array(), array(), '', false);
-        $XY->output->expects($this->any())->method('stackPop')->will($this->returnValue($output));
 
         // Call class and confirm output
         $param = 'session';
@@ -487,75 +547,54 @@ class XylophoneTest extends XyTestCase
         // Verify passed argument
         $this->assertObjectHasAttribute($member, $XY->$name);
         $this->assertEquals($param, $XY->$name->$member);
-
-        // Clean up
-        unset($XY->$name);
-        unset($XY->output);
     }
 
     /**
      * Test play()
-     *
-     * @depends testTune
      */
-    public function testPlay($XY)
+    public function testPlay()
     {
-        // Set up play test arguments
-        $XY->play_args['intro_atl'] = array('foo' => 'bar', 'bar' => 'baz');
-        $XY->play_args['coda_ret'] = false;
+        // Set up args
+        $autoload = array('foo' => 'bar', 'bar' => 'baz');
         $benchmark = 'time';
         $config = array('name' => 'value');
         $routing = array('dir' => 'empty', 'ctlr' => 'none', 'meth' => 'blank');
 
-        // Call play and check args
-        $XY->play($benchmark, $config, $routing);
-        $this->assertArrayHasKey('intro_bmk', $XY->play_args);
-        $this->assertEquals($benchmark, $XY->play_args['intro_bmk']);
-        $this->assertArrayHasKey('intro_cfg', $XY->play_args);
-        $this->assertEquals($config, $XY->play_args['intro_cfg']);
-        $this->assertArrayHasKey('bridge_rtg', $XY->play_args);
-        $this->assertEquals($routing, $XY->play_args['bridge_rtg']);
-        $this->assertArrayHasKey('chorus_bmk', $XY->play_args);
-        $this->assertEquals($benchmark, $XY->play_args['chorus_bmk']);
-        $this->assertArrayHasKey('chorus_atl', $XY->play_args);
-        $this->assertEquals($XY->play_args['intro_atl'], $XY->play_args['chorus_atl']);
-        $this->assertArrayHasKey('verse_bmk', $XY->play_args);
-        $this->assertEquals($benchmark, $XY->play_args['verse_bmk']);
+        // Mock Xylophone and set up calls
+        $XY = $this->getMock('Xylophone\core\Xylophone',
+            array('playIntro', 'playBridge', 'playCoda', 'playChorus', 'playVerse'), array(), '', false);
+        $XY->expects($this->once())->method('playIntro')->with($this->equalTo($benchmark), $this->equalTo($config))->
+            will($this->returnValue($autoload));
+        $XY->expects($this->once())->method('playBridge')->with($this->equalTo($routing));
+        $XY->expects($this->once())->method('playCoda')->will($this->returnValue(false));
+        $XY->expects($this->once())->method('playChorus')->with($this->equalTo($benchmark), $this->equalTo($autoload));
+        $XY->expects($this->once())->method('playVerse')->with($this->equalTo($benchmark));
 
-        // Clean up
-        $XY->play_args = array();
+        // Call play
+        $XY->play($benchmark, $config, $routing);
     }
 
     /**
      * Test play() with a cache
-     *
-     * @depends testTune
      */
-    public function testPlayCache($XY)
+    public function testPlayCache()
     {
         // Set up play test arguments
-        $XY->play_args['intro_atl'] = 'foo';
-        $XY->play_args['coda_ret'] = true;
         $benchmark = false;
         $config = array('name' => 'value');
         $routing = array('dir' => 'empty', 'ctlr' => 'none', 'meth' => 'blank');
 
-        // Call play and check args
+        // Mock Xylophone and set up calls
+        $XY = $this->getMock('Xylophone\core\Xylophone',
+            array('playIntro', 'playBridge', 'playCoda', 'playChorus', 'playVerse'), array(), '', false);
+        $XY->expects($this->once())->method('playIntro')->with($this->equalTo($benchmark), $this->equalTo($config));
+        $XY->expects($this->once())->method('playBridge')->with($this->equalTo($routing));
+        $XY->expects($this->once())->method('playCoda')->will($this->returnValue(true));
+        $XY->expects($this->never())->method('playChorus');
+        $XY->expects($this->never())->method('playVerse');
+
+        // Call play
         $XY->play($benchmark, $config, $routing);
-        $this->assertArrayHasKey('intro_bmk', $XY->play_args);
-        $this->assertEquals($benchmark, $XY->play_args['intro_bmk']);
-        $this->assertArrayHasKey('intro_cfg', $XY->play_args);
-        $this->assertEquals($config, $XY->play_args['intro_cfg']);
-        $this->assertArrayHasKey('bridge_rtg', $XY->play_args);
-        $this->assertEquals($routing, $XY->play_args['bridge_rtg']);
-
-        // These should not be set because of cache
-        $this->assertArrayNotHasKey('chorus_bmk', $XY->play_args);
-        $this->assertArrayNotHasKey('chorus_atl', $XY->play_args);
-        $this->assertArrayNotHasKey('verse_bmk', $XY->play_args);
-
-        // Clean up
-        $XY->play_args = array();
     }
 
     /**
@@ -569,13 +608,34 @@ class XylophoneTest extends XyTestCase
         $benchmark = false;
         $config = array('item1' => 'one', 'item2' => 'two');
         $autocfg = array('item3' => 'three', 'item4' => 'four');
-        $autoload = array('config' => $autocfg, 'other' => 'nothing');
+        $autons = 'foo';
+        $autovp = 'bar';
+        $autoload = array('config' => $autocfg, 'namespaces' => $autons, 'view_paths' => $autovp);
         $mimes = array('face' => 'white', 'speech' => false);
 
-        // Get mock Config, Logger, and Output
+        // Mock Xylophone, Config, Logger, and Output
+        $XY = $this->getMock('Xylophone\core\Xylophone',
+            array('loadClass', 'addNamespace', 'addViewPath', 'playBridge', 'playCoda', 'playChorus', 'playVerse'),
+            array(), '', false);
         $cfg = $this->getMock('Xylophone\core\Config', array('setItem', 'get', 'load'), array(), '', false);
-        $lgr = $this->getMock('Xylophone\core\Logger', null, array(), '', false);
-        $out = $this->getMock('Xylophone\core\Output', null, array(), '', false);
+        $lgr = (object)array('name' => 'Logger');
+        $out = (object)array('name' => 'Output');
+
+        // Set up Xylophone calls
+        // The at() indexes represent the sequenced calls to Xylophone methods
+        // In order to verify the various parameters, we have to specify the sequence
+        $XY->expects($this->at(0))->method('loadClass')->with($this->equalTo('Config'), $this->equalTo('core'))->
+            will($this->returnValue($cfg));
+        $XY->expects($this->at(1))->method('loadClass')->with($this->equalTo('Logger'), $this->equalTo('core'))->
+            will($this->returnValue($lgr));
+        $XY->expects($this->at(2))->method('loadClass')->with($this->equalTo('Output'), $this->equalTo('core'))->
+            will($this->returnValue($out));
+        $XY->expects($this->once())->method('addNamespace')->with($this->equalTo($autons));
+        $XY->expects($this->once())->method('addViewPath')->with($this->equalTo($autovp));
+        $XY->expects($this->once())->method('playBridge');
+        $XY->expects($this->once())->method('playCoda')->will($this->returnValue(false));
+        $XY->expects($this->once())->method('playChorus')->with($this->equalTo($benchmark), $this->equalTo($autoload));
+        $XY->expects($this->once())->method('playVerse');
 
         // Set up Config calls
         // The at() indexes represent the sequenced calls to Config methods
@@ -589,116 +649,101 @@ class XylophoneTest extends XyTestCase
             will($this->returnValue($mimes));
         $cfg->expects($this->at(5))->method('setItem')->with($this->equalTo('mimes'), $this->equalTo($mimes));
 
-        // Backstop loadClass() with objects
-        $XY->load_class['core\Config'] = $cfg;
-        $XY->load_class['core\Logger'] = $lgr;
-        $XY->load_class['core\Output'] = $out;
-
-        // Call playIntro() and confirm autoload return and loaded objects
-        $this->assertEquals($autoload, $XY->playIntro($benchmark, $config));
+        // Call play() and confirm autoload return and loaded objects
+        $XY->play($benchmark, $config);
         $this->assertObjectNotHasAttribute('benchmark', $XY);
         $this->assertObjectHasAttribute('config', $XY);
-        $this->assertEquals($cfg, $XY->config);
+        $this->assertSame($cfg, $XY->config);
         $this->assertObjectHasAttribute('logger', $XY);
-        $this->assertEquals($lgr, $XY->logger);
+        $this->assertSame($lgr, $XY->logger);
         $this->assertObjectHasAttribute('output', $XY);
-        $this->assertEquals($out, $XY->output);
-
-        // Clean up
-        unset($XY->config);
-        unset($XY->logger);
-        unset($XY->output);
-        $XY->load_class = array();
+        $this->assertSame($out, $XY->output);
     }
 
     /**
      * Test playIntro() with Benchmark
-     *
-     * @depends testTune
      */
-    public function testPlayIntroBenchmark($XY)
+    public function testPlayIntroBenchmark()
     {
-        // Set up arguments
+        // Set up args
         $benchmark = 'time';
         $config = false;
+        $obj = new stdClass();
 
-        // Get mock Benchmark, Config, Logger, and Output
+        // Mock Xylophone, Benchmark and Config
+        $XY = $this->getMock('Xylophone\core\Xylophone', array('loadClass', 'playBridge', 'playCoda'),
+            array(), '', false);
         $bmk = $this->getMock('Xylophone\core\Benchmark', null, array(), '', false);
-        $cfg = $this->getMock('Xylophone\core\Config', array('setItem', 'get', 'load'), array(), '', false);
-        $lgr = $this->getMock('Xylophone\core\Logger', null, array(), '', false);
-        $out = $this->getMock('Xylophone\core\Output', null, array(), '', false);
+        $cfg = $this->getMock('Xylophone\core\Config', array('get'), array(), '', false);
 
-        // Backstop loadClass() with objects
-        $XY->load_class['core\Benchmark'] = $bmk;
-        $XY->load_class['core\Config'] = $cfg;
-        $XY->load_class['core\Logger'] = $lgr;
-        $XY->load_class['core\Output'] = $out;
+        // Set up Xylophone calls
+        // The at() indexes represent the sequenced calls to Xylophone methods
+        // In order to verify the various parameters, we have to specify the sequence
+        $XY->expects($this->at(0))->method('loadClass')->with($this->equalTo('Benchmark'), $this->equalTo('core'))->
+            will($this->returnValue($bmk));
+        $XY->expects($this->at(1))->method('loadClass')->with($this->equalTo('Config'), $this->equalTo('core'))->
+            will($this->returnValue($cfg));
+        $XY->expects($this->at(2))->method('loadClass')->with($this->equalTo('Logger'), $this->equalTo('core'))->
+            will($this->returnValue($obj));
+        $XY->expects($this->at(3))->method('loadClass')->with($this->equalTo('Output'), $this->equalTo('core'))->
+            will($this->returnValue($obj));
+        $XY->expects($this->once())->method('playCoda')->will($this->returnValue(true));
 
-        // Call playIntro() and confirm loaded objects
-        $this->assertNull($XY->playIntro($benchmark, $config));
+        // Call play() and verify markers
+        $XY->play($benchmark, $config);
         $this->assertObjectHasAttribute('benchmark', $XY);
-        $this->assertEquals($bmk, $XY->benchmark);
-        $this->assertObjectHasAttribute('config', $XY);
-        $this->assertEquals($cfg, $XY->config);
-        $this->assertObjectHasAttribute('logger', $XY);
-        $this->assertEquals($lgr, $XY->logger);
-        $this->assertObjectHasAttribute('output', $XY);
-        $this->assertEquals($out, $XY->output);
-
-        // Verify markers
+        $this->assertSame($bmk, $XY->benchmark);
         $this->assertObjectHasAttribute('marker', $XY->benchmark);
         $this->assertEquals(array(
             'total_execution_time_start' => $benchmark,
             'loading_time:_base_classes_start' => $benchmark
         ), $XY->benchmark->marker);
-
-        // Clean up
-        unset($XY->benchmark);
-        unset($XY->config);
-        unset($XY->logger);
-        unset($XY->output);
-        $XY->load_class = array();
     }
 
     /**
      * Test playBridge()
-     *
-     * @depends testTune
      */
-    public function testPlayBridge($XY)
+    public function testPlayBridge()
     {
-        // Set up arguments
-        $routing = array('directory' => '', 'controller' => '', 'function' => '');
+        // Set up args
+        $routing = array('directory' => 'foo', 'controller' => 'bar', 'function' => 'baz');
 
-        // Get mock Loader, Hooks, Utf8, URI, and Router
-        $ldr = $this->getMock('Xylophone\core\Loader', null, array(), '', false);
+        // Mock Xylophone, Loader, Hooks, Utf8, URI, and Router
+        $XY = $this->getMock('Xylophone\core\Xylophone', array('playIntro', 'loadClass', 'playCoda'),
+            array(), '', false);
+        $ldr = (object)array('name' => 'Loader');
         $hks = $this->getMock('Xylophone\core\Hooks', array('callHook'), array(), '', false);
-        $utf = $this->getMock('Xylophone\core\Utf8', null, array(), '', false);
-        $uri = $this->getMock('Xylophone\core\URI', null, array(), '', false);
+        $utf = (object)array('name' => 'Utf8');
+        $uri = (object)array('name' => 'URI');
         $rtr = $this->getMock('Xylophone\core\Router', null, array(), '', false);
 
-        // Set up callHook() call
+        // Set up calls
+        $XY->expects($this->at(0))->method('playIntro');
+        $XY->expects($this->at(1))->method('loadClass')->with($this->equalTo('Loader'), $this->equalTo('core'))->
+            will($this->returnValue($ldr));
+        $XY->expects($this->at(2))->method('loadClass')->with($this->equalTo('Hooks'), $this->equalTo('core'))->
+            will($this->returnValue($hks));
+        $XY->expects($this->at(3))->method('loadClass')->with($this->equalTo('Utf8'), $this->equalTo('core'))->
+            will($this->returnValue($utf));
+        $XY->expects($this->at(4))->method('loadClass')->with($this->equalTo('URI'), $this->equalTo('core'))->
+            will($this->returnValue($uri));
+        $XY->expects($this->at(5))->method('loadClass')->with($this->equalTo('Router'), $this->equalTo('core'))->
+            will($this->returnValue($rtr));
+        $XY->expects($this->once())->method('playCoda')->will($this->returnValue(true));
         $hks->expects($this->once())->method('callHook')->with($this->equalTo('pre_system'));
 
-        // Backstop loadClass() with objects
-        $XY->load_class['core\Loader'] = $ldr;
-        $XY->load_class['core\Hooks'] = $hks;
-        $XY->load_class['core\Utf8'] = $utf;
-        $XY->load_class['core\URI'] = $uri;
-        $XY->load_class['core\Router'] = $rtr;
-
-        // Call playBridge() and confirm loaded objects
-        $XY->playBridge($routing);
+        // Call play() and confirm loaded objects
+        $XY->play(false, null, $routing);
         $this->assertObjectHasAttribute('load', $XY);
-        $this->assertEquals($ldr, $XY->load);
+        $this->assertSame($ldr, $XY->load);
         $this->assertObjectHasAttribute('hooks', $XY);
-        $this->assertEquals($hks, $XY->hooks);
+        $this->assertSame($hks, $XY->hooks);
         $this->assertObjectHasAttribute('utf8', $XY);
-        $this->assertEquals($utf, $XY->utf8);
+        $this->assertSame($utf, $XY->utf8);
         $this->assertObjectHasAttribute('uri', $XY);
-        $this->assertEquals($uri, $XY->uri);
+        $this->assertSame($uri, $XY->uri);
         $this->assertObjectHasAttribute('router', $XY);
-        $this->assertEquals($rtr, $XY->router);
+        $this->assertSame($rtr, $XY->router);
 
         // Verify routing
         $this->assertObjectHasAttribute('route', $XY->router);
@@ -708,182 +753,155 @@ class XylophoneTest extends XyTestCase
             'method' => $routing['function'],
             'args' => array()
         ), $XY->router->route);
-
-        // Clean up
-        unset($XY->load);
-        unset($XY->hooks);
-        unset($XY->utf8);
-        unset($XY->uri);
-        unset($XY->router);
-        $XY->load_class = array();
     }
 
     /**
      * Test playCoda()
-     *
-     * @depends testTune
      */
-    public function testPlayCoda($XY)
+    public function testPlayCoda()
     {
-        // Get mock Hooks and Output
+        // Mock Xylophone, Hooks, and Output and set up calls
+        $XY = $this->getMock('Xylophone\core\Xylophone',
+            array('playIntro', 'playBridge', 'playChorus', 'playVerse'), array(), '', false);
         $XY->hooks = $this->getMock('Xylophone\core\Hooks', array('callHook'), array(), '', false);
         $XY->output = $this->getMock('Xylophone\core\Output', array('displayCache'), array(), '', false);
-
-        // Set up calls
+        $XY->expects($this->once())->method('playIntro');
+        $XY->expects($this->once())->method('playBridge');
+        $XY->expects($this->never())->method('playChorus');
+        $XY->expects($this->never())->method('playVerse');
         $XY->hooks->expects($this->once())->method('callHook')->with($this->equalTo('cache_override'))->
             will($this->returnValue(false));
         $XY->output->expects($this->once())->method('displayCache')->will($this->returnValue(true));
 
-        // Call playCoda() and confirm TRUE
-        $this->assertTrue($XY->playCoda());
-
-        // Clean up
-        unset($XY->hooks);
-        unset($XY->output);
+        // Call play()
+        $XY->play();
     }
 
     /**
      * Test playCoda() with cache override
-     *
-     * @depends testTune
      */
-    public function testPlayCodaOverride($XY)
+    public function testPlayCodaOverride()
     {
-        // Get mock Hooks and set up callHook() call
+        // Mock Xylophone, Hooks, and Output and set up calls
+        $XY = $this->getMock('Xylophone\core\Xylophone', array('playIntro', 'playBridge', 'playChorus', 'playVerse'),
+            array(), '', false);
         $XY->hooks = $this->getMock('Xylophone\core\Hooks', array('callHook'), array(), '', false);
+        $XY->expects($this->once())->method('playIntro');
+        $XY->expects($this->once())->method('playBridge');
+        $XY->expects($this->once())->method('playChorus');
+        $XY->expects($this->once())->method('playVerse');
         $XY->hooks->expects($this->once())->method('callHook')->with($this->equalTo('cache_override'))->
             will($this->returnValue(true));
 
-        // Call playCoda() and confirm FALSE
-        $this->assertFalse($XY->playCoda());
-
-        // Clean up
-        unset($XY->hooks);
+        // Call play()
+        $XY->play();
     }
 
     /**
      * Test playCoda() with no cache
-     *
-     * @depends testTune
      */
-    public function testPlayCodaNoCache($XY)
+    public function testPlayCodaNoCache()
     {
-        // Get mock Hooks and Output
+        // Mock Xylophone, Hooks, and Output and set up calls
+        $XY = $this->getMock('Xylophone\core\Xylophone',
+            array('playIntro', 'playBridge', 'playChorus', 'playVerse'), array(), '', false);
         $XY->hooks = $this->getMock('Xylophone\core\Hooks', array('callHook'), array(), '', false);
         $XY->output = $this->getMock('Xylophone\core\Output', array('displayCache'), array(), '', false);
-
-        // Set up calls
+        $XY->expects($this->once())->method('playIntro');
+        $XY->expects($this->once())->method('playBridge');
+        $XY->expects($this->once())->method('playChorus');
+        $XY->expects($this->once())->method('playVerse');
         $XY->hooks->expects($this->once())->method('callHook')->with($this->equalTo('cache_override'))->
             will($this->returnValue(false));
         $XY->output->expects($this->once())->method('displayCache')->will($this->returnValue(false));
 
-        // Call playCoda() and confirm FALSE
-        $this->assertFalse($XY->playCoda());
-
-        // Clean up
-        unset($XY->hooks);
-        unset($XY->output);
+        // Call play()
+        $XY->play();
     }
 
     /**
      * Test playChorus()
-     *
-     * @depends testTune
      */
-    public function testPlayChorus($XY)
+    public function testPlayChorus()
     {
-        // Set up arguments
+        // Set up args
         $benchmark = false;
         $autoload = array('language' => 'klingon', 'drivers' => 'database', 'libraries' => 'books', 'model' => 'T');
 
-        // Get mock Security, Input, Lang, and Loader
-        $sec = $this->getMock('Xylophone\core\Security', null, array(), '', false);
-        $inp = $this->getMock('Xylophone\core\Input', null, array(), '', false);
+        // Mock Xylophone, Security, Input, Lang, and Loader
+        $XY = $this->getMock('Xylophone\core\Xylophone',
+            array('playIntro', 'playBridge', 'playCoda', 'loadClass', 'playVerse'), array(), '', false);
+        $sec = (object)array('name' => 'Security');
+        $inp = (object)array('name' => 'Input');
         $lng = $this->getMock('Xylophone\core\Lang', array('load'), array(), '', false);
         $XY->load = $this->getMock('Xylophone\core\Loader', array('driver', 'library', 'model'), array(), '', false);
 
         // Set up calls
+        $XY->expects($this->at(0))->method('playIntro')->will($this->returnValue($autoload));
+        $XY->expects($this->at(1))->method('playBridge');
+        $XY->expects($this->at(2))->method('playCoda')->will($this->returnValue(false));
+        $XY->expects($this->at(3))->method('loadClass')->with($this->equalTo('Security'), $this->equalTo('core'))->
+            will($this->returnValue($sec));
+        $XY->expects($this->at(4))->method('loadClass')->with($this->equalTo('Input'), $this->equalTo('core'))->
+            will($this->returnValue($inp));
+        $XY->expects($this->at(5))->method('loadClass')->with($this->equalTo('Lang'), $this->equalTo('core'))->
+            will($this->returnValue($lng));
         $lng->expects($this->once())->method('load')->with($this->equalTo($autoload['language']));
         $XY->load->expects($this->once())->method('driver')->with($this->equalTo($autoload['drivers']));
         $XY->load->expects($this->once())->method('library')->with($this->equalTo($autoload['libraries']));
         $XY->load->expects($this->once())->method('model')->with($this->equalTo($autoload['model']));
 
-        // Backstop loadClass() with objects
-        $XY->load_class['core\Security'] = $sec;
-        $XY->load_class['core\Input'] = $inp;
-        $XY->load_class['core\Lang'] = $lng;
-
-        // Call playChorus() and confirm loaded objects
-        $XY->playChorus($benchmark, $autoload);
+        // Call play() and confirm loaded objects
+        $XY->play($benchmark);
         $this->assertObjectHasAttribute('security', $XY);
-        $this->assertEquals($sec, $XY->security);
+        $this->assertSame($sec, $XY->security);
         $this->assertObjectHasAttribute('input', $XY);
-        $this->assertEquals($inp, $XY->input);
+        $this->assertSame($inp, $XY->input);
         $this->assertObjectHasAttribute('lang', $XY);
-        $this->assertEquals($lng, $XY->lang);
-
-        // Clean up
-        unset($XY->security);
-        unset($XY->input);
-        unset($XY->lang);
-        unset($XY->load);
-        $XY->load_class = array();
+        $this->assertSame($lng, $XY->lang);
     }
 
     /**
      * Test playChorus() with benchmark
-     *
-     * @depends testTune
      */
-    public function testPlayChorusBenchmark($XY)
+    public function testPlayChorusBenchmark()
     {
         // Set up arguments
         $benchmark = 'time';
-        $autoload = array();
+        $obj = new stdClass();
 
-        // Get mock Benchmark, Security, Input, and Lang
+        // Mock Xylophone and Benchmark and set up calls
+        $XY = $this->getMock('Xylophone\core\Xylophone',
+            array('playIntro', 'playBridge', 'playCoda', 'playVerse', 'loadClass'), array(), '', false);
         $XY->benchmark = $this->getMock('Xylophone\core\Benchmark', array('mark'), array(), '', false);
-        $sec = $this->getMock('Xylophone\core\Security', null, array(), '', false);
-        $inp = $this->getMock('Xylophone\core\Input', null, array(), '', false);
-        $lng = $this->getMock('Xylophone\core\Lang', null, array(), '', false);
-
-        // Set up mark() call
+        $XY->expects($this->once())->method('playCoda')->will($this->returnValue(false));
+        $XY->expects($this->exactly(3))->method('loadClass')->will($this->returnValue($obj));
         $XY->benchmark->expects($this->once())->method('mark')->with($this->equalTo('loading_time:_base_classes_end'));
 
-        // Backstop loadClass() with objects
-        $XY->load_class['core\Security'] = $sec;
-        $XY->load_class['core\Input'] = $inp;
-        $XY->load_class['core\Lang'] = $lng;
-
-        // Call playChorus()
-        $XY->playChorus($benchmark, $autoload);
-
-        // Clean up
-        unset($XY->benchmark);
-        unset($XY->security);
-        unset($XY->input);
-        unset($XY->lang);
-        $XY->load_class = array();
+        // Call play()
+        $XY->play($benchmark);
     }
 
     /**
      * Test playVerse()
-     *
-     * @depends testTune
      */
-    public function testPlayVerse($XY)
+    public function testPlayVerse()
     {
         // Set up arguments
         $class = 'Main';
         $route = array('path' => '', 'class' => $class, 'method' => 'index', 'args' => array());
         $name = strtolower($class);
 
-        // Mock Hooks, Router, and Loader
+        // Mock Xylophone, Hooks, Router, and Loader
+        $XY = $this->getMock('Xylophone\core\Xylophone',
+            array('playIntro', 'playBridge', 'playCoda', 'playChorus', 'callController'), array(), '', false);
         $XY->hooks = $this->getMock('Xylophone\core\Hooks', array('callHook'), array(), '', false);
-        $XY->router = $this->getMock('Xylophone\core\Router', null, array(), '', false);
+        $XY->router = new stdClass();
         $XY->load = $this->getMock('Xylophone\core\Loader', array('controller'), array(), '', false);
 
         // Set up calls
+        $XY->expects($this->once())->method('playCoda')->will($this->returnValue(false));
+        $XY->expects($this->once())->method('callController')->will($this->returnValue(true));
         $XY->hooks->expects($this->at(0))->method('callHook')->with($this->equalTo('pre_controller'));
         $XY->hooks->expects($this->at(1))->method('callHook')->with($this->equalTo('post_controller_constructor'));
         $XY->hooks->expects($this->at(2))->method('callHook')->with($this->equalTo('post_controller'));
@@ -891,97 +909,76 @@ class XylophoneTest extends XyTestCase
             will($this->returnValue(true));
         $XY->hooks->expects($this->at(4))->method('callHook')->with($this->equalTo('post_system'));
         $XY->load->expects($this->once())->method('controller')->
-            with($this->equalTo($route), $this->equalTo($name), $this->equalTo(false))->
+            with($this->equalTo($route), $this->equalTo($name), $this->isFalse())->
             will($this->returnValue(true));
 
-        // Trigger callController() override with return value, set route, and set fake class object
-        $XY->call_controller = true;
+        // Set route, and set fake class object
         $XY->router->route = $route;
         $XY->$name = (object)array('member' => 'club');
 
-        // Call playVerse() and verify routed and callController() argument
-        $XY->playVerse(false);
+        // Call play() and verify routed
+        $XY->play(false);
         $this->assertObjectHasAttribute('routed', $XY);
-        $this->assertEquals($XY->$name, $XY->routed);
-        $this->assertEquals($route, $XY->call_controller);
-
-        // Clean up
-        unset($XY->hooks);
-        unset($XY->router);
-        unset($XY->load);
-        unset($XY->routed);
-        unset($XY->$name);
-        $XY->call_controller = null;
+        $this->assertSame($XY->$name, $XY->routed);
     }
 
     /**
      * Test playVerse() with benchmarks
-     *
-     * @depends testTune
      */
-    public function testPlayVerseBenchmark($XY)
+    public function testPlayVerseBenchmark()
     {
-        // Mock Benchmark, Hooks, Router, Loader, and Output
+        // Set up args
+        $class = 'BadClass';
+        $method = 'none';
+        $clsmth = $class.'/'.$method;
+        $name = strtolower($class);
+
+        // Mock Xylophone, Benchmark, Hooks, Router, Loader, and Output
+        $XY = $this->getMock('Xylophone\core\Xylophone',
+            array('playIntro', 'playBridge', 'playCoda', 'playChorus', 'callController', 'show404'),
+            array(), '', false);
         $XY->benchmark = $this->getMock('Xylophone\core\Benchmark', array('mark'), array(), '', false);
         $XY->hooks = $this->getMock('Xylophone\core\Hooks', array('callHook'), array(), '', false);
-        $XY->router = $this->getMock('Xylophone\core\Router', null, array(), '', false);
+        $XY->router = new stdClass();
         $XY->load = $this->getMock('Xylophone\core\Loader', array('controller'), array(), '', false);
         $XY->output = $this->getMock('Xylophone\core\Output', array('display'), array(), '', false);
 
         // Set up calls
+        $XY->expects($this->once())->method('playCoda')->will($this->returnValue(false));
+        $XY->expects($this->once())->method('callController')->will($this->returnValue(false));
+        $XY->expects($this->exactly(2))->method('show404')->with($this->equalTo($clsmth));
         $XY->benchmark->expects($this->at(0))->method('mark')->with($this->equalTo('controller_execution_time_start'));
         $XY->benchmark->expects($this->at(1))->method('mark')->with($this->equalTo('controller_execution_time_end'));
         $XY->hooks->expects($this->exactly(5))->method('callHook')->will($this->returnValue(false));
         $XY->load->expects($this->once())->method('controller')->will($this->returnValue(false));
         $XY->output->expects($this->once())->method('display');
 
-        // Trigger callController() override with return value and show404() with argument array
-        $XY->call_controller = false;
-        $XY->show_404 = array();
-
         // Set route and dummy class 'object'
-        $class = 'BadClass';
-        $method = 'none';
         $XY->router->route = array('class' => $class, 'method' => $method);
-        $name = strtolower($class);
         $XY->$name = 'null';
 
-        // Call playVerse() and verify show404() arguments
-        $XY->playVerse('time');
-        $this->assertEquals(array($class.'/'.$method, $class.'/'.$method), $XY->show_404);
-
-        // Clean up
-        unset($XY->benchark);
-        unset($XY->hooks);
-        unset($XY->router);
-        unset($XY->load);
-        unset($XY->output);
-        unset($XY->$name);
-        unset($XY->routed);
-        $XY->call_controller = null;
-        $XY->show_404 = null;
+        // Call play()
+        $XY->play('time');
     }
 
     /**
      * Test playVerse() with Al Fine Exception
-     *
-     * @depends testTune
      */
-    public function testPlayVerseAlFine($XY)
+    public function testPlayVerseAlFine()
     {
-        // Mock Hooks, Router, Loader, and Output
+        // Mock Xylophone, Hooks, Router, and Loader
+        $XY = $this->getMock('Xylophone\core\Xylophone',
+            array('playintro', 'playBridge', 'playCoda', 'playChorus', 'callController'), array(), '', false);
         $XY->hooks = $this->getMock('Xylophone\core\Hooks', array('callHook'), array(), '', false);
-        $XY->router = $this->getMock('Xylophone\core\Router', null, array(), '', false);
+        $XY->router = new stdClass();
         $XY->load = $this->getMock('Xylophone\core\Loader', array('controller'), array(), '', false);
-        $XY->output = $this->getMock('Xylophone\core\Output', array('display'), array(), '', false);
 
         // Set up calls
-        $XY->hooks->expects($this->exactly(5))->method('callHook')->will($this->returnValue(false));
+        $XY->expects($this->once())->method('playCoda')->will($this->returnValue(false));
+        $XY->expects($this->once())->method('callController')->
+            will($this->throwException(new Xylophone\core\AlFineException));
+        $XY->hooks->expects($this->exactly(5))->method('callHook')->will($this->returnValue(true));
         $XY->load->expects($this->once())->method('controller')->will($this->returnValue(true));
-        $XY->output->expects($this->once())->method('display');
-
-        // Trigger callController() override with exception
-        $XY->call_controller = 'Xylophone\core\AlFineException';
 
         // Set route and dummy class 'object'
         $class = 'ShortClass';
@@ -991,60 +988,61 @@ class XylophoneTest extends XyTestCase
         $name = strtolower($class);
         $XY->$name = 'null';
 
-        // Call playVerse()
-        $XY->playVerse(false);
-
-        // Clean up
-        unset($XY->hooks);
-        unset($XY->router);
-        unset($XY->load);
-        unset($XY->output);
-        unset($XY->$name);
-        unset($XY->routed);
-        $XY->call_controller = null;
+        // Call play()
+        $XY->play(false);
     }
 
     /**
      * Test adding a bad view path
-     *
-     * @depends testTune
      */
-    public function testAddBadViewPath($XY)
+    public function testAddBadViewPath()
     {
+        // Mock Xylophone
+        $XY = $this->getMock('Xylophone\core\Xylophone', null, array(), '', false);
+
         // Check for bad view path add failure
         $this->assertFalse($XY->addViewPath('some/path'));
     }
 
     /**
      * Test adding a view path
-     *
-     * @depends testTune
-     * @return  object  Mock Xylophone instance
      */
-    public function testAddViewPath($XY)
+    public function testAddViewPath()
     {
-        // Check for view path add
+        // Load the filesystem
+        $this->loadFilesystem();
+
+        // Set up args
         $viewdir = 'sharedviews';
         $shvwdir = $this->share_dir->getName().'/'.$viewdir;
+
+        // Mock Xylophone and set up call
+        $XY = $this->getMock('Mocks\core\Xylophone', array('realpath'), array(), '', false);
+        $XY->expects($this->once())->method('realpath')->with($this->equalTo($this->share_path.'/'.$viewdir))->
+            will($this->returnValue($this->share_path.'/'.$viewdir));
+
+        // Set resolve bases and add our view dir
+        $XY->resolve_bases = array('', $this->inc_path.'/');
         $this->vfsMkdir($viewdir, $this->share_dir);
+
+        // Call addViewPath() and verify new path
         $this->assertTrue($XY->addViewPath($shvwdir));
         $this->assertArrayHasKey($shvwdir, $XY->view_paths);
         $this->assertEquals($this->inc_path.'/'.$shvwdir.'/', $XY->view_paths[$shvwdir]);
-
-        // Return instance for path removal
-        return $XY;
     }
 
     /**
      * Test removing a view path
-     *
-     * @depends testAddViewPath
      */
-    public function testRemoveViewPath($XY)
+    public function testRemoveViewPath()
     {
-        // Get last view
-        end($XY->view_paths);
-        $name = key($XY->view_paths);
+        // Mock Xylophone
+        $XY = $this->getMock('Xylophone\core\Xylophone', null, array(), '', false);
+
+        // Set test view
+        $name = 'testvw';
+        $path = '/fake/view/path';
+        $XY->view_paths[$name] = $path;
 
         // Check for view removal
         $XY->removeViewPath($name);
@@ -1053,59 +1051,66 @@ class XylophoneTest extends XyTestCase
 
     /**
      * Test adding an empty namespace
-     *
-     * @depends testTune
      */
-    public function testAddGlobalNamespace($XY)
+    public function testAddGlobalNamespace()
     {
+        // Mock Xylophone and set up ns paths
+        $XY = $this->getMock('Xylophone\core\Xylophone', null, array(), '', false);
+        $XY->ns_paths[''] = '/my/app/path';
+
         // Check for global namespace add failure
-        $this->assertArrayHasKey('', $XY->ns_paths);
         $this->assertFalse($XY->addNamespace('', 'some/path'));
     }
 
     /**
      * Test adding a bad namespace path
-     *
-     * @depends testTune
      */
-    public function testAddBadNamespace($XY)
+    public function testAddBadNamespace()
     {
+        // Mock Xylophone and set up ns paths
+        $XY = $this->getMock('Xylophone\core\Xylophone', null, array(), '', false);
+        $XY->ns_paths[''] = '/my/app/path';
+
         // Check for bad namespace add failure
         $this->assertFalse($XY->addNamespace('NoSpace', 'some/path'));
     }
 
     /**
      * Test adding a namespace path
-     *
-     * @depends testTune
-     * @return  object  Mock Xylophone instance
      */
-    public function testAddNamespace($XY)
+    public function testAddNamespace()
     {
+        // Load the filesystem
+        $this->loadFilesystem();
+
         // Add a path in includes
         $ns = 'OtherSpace';
-        $dir = 'xyothers/';
+        $dir = 'xyothers';
+        $path = $this->inc_path.'/'.$dir;
         $this->vfsMkdir($dir, $this->inc_dir);
+
+        // Mock Xylophone, set up call, and set resolve bases
+        $XY = $this->getMock('Mocks\core\Xylophone', array('realpath'), array(), '', false);
+        $XY->expects($this->once())->method('realpath')->with($this->equalTo($path))->will($this->returnValue($path));
+        $XY->resolve_bases = array('', $this->inc_path.'/');
 
         // Check for namespace add
         $this->assertTrue($XY->addNamespace($ns, $dir));
         $this->assertArrayHasKey($ns, $XY->ns_paths);
-        $this->assertEquals($this->inc_path.'/'.$dir, $XY->ns_paths[$ns]);
-
-        // Return instance for namespace removal
-        return $XY;
+        $this->assertEquals($path.'/', $XY->ns_paths[$ns]);
     }
 
     /**
      * Test removing a namespace path
-     *
-     * @depends testAddNamespace
      */
-    public function testRemoveNamespace($XY)
+    public function testRemoveNamespace()
     {
-        // Get last namespace
-        end($XY->ns_paths);
-        $ns = key($XY->ns_paths);
+        // Mock Xylophone
+        $XY = $this->getMock('Xylophone\core\Xylophone', null, array(), '', false);
+
+        // Set test namespace
+        $ns = 'TestSpace';
+        $XY->ns_paths[$ns] = '/path/to/nothing';
 
         // Check for namespace removal
         $XY->removeNamespace($ns);
@@ -1114,10 +1119,8 @@ class XylophoneTest extends XyTestCase
 
     /**
      * Test checking for HTTPS
-     *
-     * @depends testTune
      */
-    public function testIsHttps($XY)
+    public function testIsHttps()
     {
         // Capture and unset any existing values
         $keys = array('HTTPS' => 'on', 'HTTP_X_FORWARDED_PROTO' => 'https', 'HTTP_FRONT_END_HTTPS' => 'on');
@@ -1129,7 +1132,8 @@ class XylophoneTest extends XyTestCase
             }
         }
 
-        // Confirm not HTTPS
+        // Mock Xylophone and confirm not HTTPS
+        $XY = $this->getMock('Xylophone\core\Xylophone', null, array(), '', false);
         $this->assertFalse($XY->isHttps());
 
         // Confirm HTTPS for each key/value
@@ -1147,46 +1151,47 @@ class XylophoneTest extends XyTestCase
 
     /**
      * Test checking for CLI
-     *
-     * @depends testTune
      */
-    public function testIsCli($XY)
+    public function testIsCli()
     {
-        // Just confirm CLI - can't negative test defines
+        // Mock Xylophone and confirm CLI - can't negative test defines
+        $XY = $this->getMock('Xylophone\core\Xylophone', null, array(), '', false);
         $this->assertTrue($XY->isCli());
     }
 
     /**
      * Test isCallable()
-     *
-     * @depends testTune
      */
-    public function testIsCallable($XY)
+    public function testIsCallable()
     {
-        // Confirm tune is callable and badmeth is not
+        // Mock Xylophone and confirm tune is callable and badmeth is not
+        $XY = $this->getMock('Xylophone\core\Xylophone', null, array(), '', false);
         $this->assertTrue($XY->isCallable('Xylophone\core\Xylophone', 'tune'));
         $this->assertFalse($XY->isCallable('Xylophone\core\Xylophone', 'badmeth'));
     }
 
     /**
      * Test isUsable()
-     *
-     * @depends testTune
      */
-    public function testIsUsable($XY)
+    public function testIsUsable()
     {
-        // Confirm a known function is usable and a fake one is not
+        // Mock Xylophone and confirm a known function is usable and a fake one is not
+        $XY = $this->getMock('Xylophone\core\Xylophone', null, array(), '', false);
         $this->assertTrue($XY->isUsable('function_exists'));
         $this->assertFalse($XY->isUsable('fake_function_exists'));
     }
 
     /**
      * Test isWritable() for a file
-     *
-     * @depends testTune
      */
-    public function testIsWritableFile($XY)
+    public function testIsWritableFile()
     {
+        // Load VFS
+        $this->vfsInit();
+
+        // Mock Xylophone
+        $XY = $this->getMock('Xylophone\core\Xylophone', null, array(), '', false);
+
         // Create file and get path
         $file = $this->vfsCreate('writefile.txt', 'foobar', $this->vfs_app_dir, 0666);
         $path = $file->url();
@@ -1201,11 +1206,15 @@ class XylophoneTest extends XyTestCase
 
     /**
      * Test isWritable() for a directory
-     *
-     * @depends testTune
      */
-    public function testIsWritableDir($XY)
+    public function testIsWritableDir()
     {
+        // Load VFS
+        $this->vfsInit();
+
+        // Mock Xylophone
+        $XY = $this->getMock('Xylophone\core\Xylophone', null, array(), '', false);
+
         // Create dir and get path
         $dir = $this->vfsMkdir('writedir', $this->vfs_app_dir, 0777);
         $path = $dir->url();
@@ -1220,54 +1229,50 @@ class XylophoneTest extends XyTestCase
 
     /**
      * Test show404()
-     *
-     * @depends testTune
      */
-    public function testShow404($XY)
+    public function testShow404()
     {
-        // Set up arguments
+        // Set up args
         $page = 'nonexistent';
         $log = true;
 
-        // Get mock Exceptions class and backstop loadClass()
-        $obj = $this->getMock('Xylophone\core\Exceptions', array('show404'), array(), '', false);
-        $obj->expects($this->once())->method('show404')->with($this->equalTo($page), $this->equalTo($log));
-        $XY->load_class['core\Exceptions'] = $obj;
+        // Mock Xylophone and Exceptions and set up calls
+        $XY = $this->getMock('Xylophone\core\Xylophone', array('loadClass'), array(), '', false);
+        $exc = $this->getMock('Xylophone\core\Exceptions', array('show404'), array(), '', false);
+        $XY->expects($this->once())->method('loadClass')->with($this->equalTo('Exceptions'), $this->equalTo('core'))->
+            will($this->returnValue($exc));
+        $exc->expects($this->once())->method('show404')->with($this->equalTo($page), $this->equalTo($log));
 
-        // Call show404() and clean up
+        // Call show404()
         $XY->show404($page, $log);
-        $XY->load_class = array();
     }
 
     /**
      * Test showError()
-     *
-     * @depends testTune
      */
-    public function testShowError($XY)
+    public function testShowError()
     {
         // Set up arguments
         $msg = 'Something went wrong';
         $stat = 501;
         $head = 'The screw-up fairy has been here';
 
-        // Get mock Exceptions class and backstop loadClass()
-        $obj = $this->getMock('Xylophone\core\Exceptions', array('showError'), array(), '', false);
-        $obj->expects($this->once())->method('showError')->with($this->equalTo($head), $this->equalTo($msg),
+        // Mock Xylophone and Exceptions and set up calls
+        $XY = $this->getMock('Xylophone\core\Xylophone', array('loadClass'), array(), '', false);
+        $exc = $this->getMock('Xylophone\core\Exceptions', array('showError'), array(), '', false);
+        $XY->expects($this->once())->method('loadClass')->with($this->equalTo('Exceptions'), $this->equalTo('core'))->
+            will($this->returnValue($exc));
+        $exc->expects($this->once())->method('showError')->with($this->equalTo($head), $this->equalTo($msg),
             $this->equalTo('error_general'), $this->equalTo($stat));
-        $XY->load_class['core\Exceptions'] = $obj;
 
-        // Call showError() and clean up
+        // Call showError()
         $XY->showError($msg, $stat, $head);
-        $XY->load_class = array();
     }
 
     /**
      * Test exceptionHandler()
-     *
-     * @depends testTune
      */
-    public function testExceptionHandler($XY)
+    public function testExceptionHandler()
     {
         // Set up arguments
         $severity = E_ERROR;
@@ -1275,14 +1280,14 @@ class XylophoneTest extends XyTestCase
         $filepath = 'path/to/file';
         $line = 13;
 
-        // Mock Exceptions and set up calls
+        // Mock Xylophone and Exceptions and set up calls
+        $XY = $this->getMock('Xylophone\core\Xylophone', array('loadClass'), array(), '', false);
         $exc = $this->getMock('Xylophone\core\Output', array('showPhpError', 'logException'), array(), '', false);
+        $XY->expects($this->once())->method('loadClass')->with($this->equalTo('Exceptions'), $this->equalTo('core'))->
+            will($this->returnValue($exc));
         $exc->expects($this->never())->method('showPhpError');
         $exc->expects($this->once())->method('logException')->
             with($this->equalTo($severity), $this->equalTo($message), $this->equalTo($filepath), $this->equalTo($line));
-
-        // Backstop loadClass() with object
-        $XY->load_class['core\Exceptions'] = $exc;
 
         // Ensure our severity is set and display_errors is off
         $errors = error_reporting();
@@ -1296,15 +1301,12 @@ class XylophoneTest extends XyTestCase
         // Clean up
         error_reporting($errors);
         ini_set('display_errors', $display);
-        $XY->load_class = array();
     }
 
     /**
      * Test exceptionHandler() with showPhpError()
-     *
-     * @depends testTune
      */
-    public function testExceptionHandlerShow($XY)
+    public function testExceptionHandlerShow()
     {
         // Set up arguments
         $severity = E_NOTICE;
@@ -1312,8 +1314,11 @@ class XylophoneTest extends XyTestCase
         $filepath = 'some/fake/file';
         $line = 666;
 
-        // Mock Exceptions and set up calls
+        // Mock Xylophone and Exceptions and set up calls
+        $XY = $this->getMock('Xylophone\core\Xylophone', array('loadClass'), array(), '', false);
         $exc = $this->getMock('Xylophone\core\Output', array('showPhpError', 'logException'), array(), '', false);
+        $XY->expects($this->once())->method('loadClass')->with($this->equalTo('Exceptions'), $this->equalTo('core'))->
+            will($this->returnValue($exc));
         $exc->expects($this->once())->method('showPhpError')->
             with($this->equalTo($severity), $this->equalTo($message), $this->equalTo($filepath), $this->equalTo($line));
         $exc->expects($this->once())->method('logException')->
@@ -1339,18 +1344,15 @@ class XylophoneTest extends XyTestCase
 
     /**
      * Test exceptionHandler() ignoring an error
-     *
-     * @depends testTune
      */
-    public function testExceptionHandlerIgnore($XY)
+    public function testExceptionHandlerIgnore()
     {
-        // Mock Exceptions and set up calls
+        // Mock Xylophone and Exceptions and set up calls
+        $XY = $this->getMock('Xylophone\core\Xylophone', array('loadClass'), array(), '', false);
         $exc = $this->getMock('Xylophone\core\Output', array('showPhpError', 'logException'), array(), '', false);
+        $XY->expects($this->never())->method('loadClass');
         $exc->expects($this->never())->method('showPhpError');
         $exc->expects($this->never())->method('logException');
-
-        // Backstop loadClass() with object
-        $XY->load_class['core\Exceptions'] = $exc;
 
         // Get reporting level and remove our severity
         $severity = E_WARNING;
@@ -1362,7 +1364,6 @@ class XylophoneTest extends XyTestCase
 
         // Clean up
         error_reporting($errors);
-        $XY->load_class = array();
     }
 }
 
