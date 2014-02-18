@@ -61,10 +61,9 @@ class Config implements \ArrayAccess
         // Read the config file
         $this->config = $this->get('config.php', 'config');
         if (!is_array($this->config)) {
-            header('HTTP/1.1 503 Service Unavailable.', true, 503);
-            echo $this->config === false ? 'The configuration file does not exist.' :
+            $msg = ($this->config === false) ? 'The configuration file does not exist.' :
                 'The configuration file is invalid.';
-            exit(EXIT_CONFIG);
+            throw new ExitException($msg);
         }
 
         // Set the base_url automatically if none was provided
@@ -110,24 +109,24 @@ class Config implements \ArrayAccess
                 if ($graceful) {
                     return false;
                 }
-                $XY->showError('The configuration file '.$name.'.php does not exist.');
+                return $XY->showError('The configuration file '.$name.'.php does not exist.');
             }
             else if (is_string($config)) {
                 if ($graceful) {
                     return false;
                 }
-                $XY->showError('Your '.$name.'.php file does not appear to contain a valid configuration array.');
+                return $XY->showError('Your '.$name.'.php file does not appear to contain a valid configuration array.');
             }
 
             // Check for sections
             if ($sections === true) {
                 // Merge or set section
                 $this->config[$name] = isset($this->config[$name]) ?
-                    array_merge_recursive($this->config[$name], $config) : $this->config[$name] = $config;
+                    array_replace_recursive($this->config[$name], $config) : $this->config[$name] = $config;
             }
             else {
                 // Merge config
-                $this->config = array_merge_recursive($this->config, $config);
+                $this->config = array_replace_recursive($this->config, $config);
             }
 
             // Mark file as loaded
@@ -193,7 +192,8 @@ class Config implements \ArrayAccess
                     if ($_extras !== false) {
                         // Get associative array of public vars
                         foreach (get_defined_vars() as $_key => $_var) {
-                            $_key[0] !== '_' && $_key !== $_name && $_extras[$_key] = $_var;
+                            $_key[0] !== '_' && $_key !== $_name && $_key !== 'this' && $_key != 'XY' &&
+                                $_extras[$_key] = $_var;
                         }
                     }
 
@@ -235,7 +235,7 @@ class Config implements \ArrayAccess
         if ($index === '') {
             return isset($this->config[$item]) ? $this->config[$item] : null;
         }
-        return isset($this->config[$index], $this->config[$index][$item]) ? $this->config[$index][$item] : null;
+        return isset($this->config[$index][$item]) ? $this->config[$index][$item] : null;
     }
 
     /**
@@ -269,34 +269,37 @@ class Config implements \ArrayAccess
      */
     public function siteUrl($uri = '', $protocol = null)
     {
+        // Get base URL and replace protocol if specified
         $base_url = $this->slashItem('base_url');
         isset($protocol) && $base_url = $protocol.substr($base_url, strpos($base_url, '://'));
 
+        // Check for URI
         if (empty($uri)) {
+            // Done here
             return $base_url.$this->item('index_page');
         }
 
+        // Clean URI string and check for query strings
         $uri = $this->uriString($uri);
+        if ($this->item('enable_query_strings')) {
+            // Assemble base URL with URI string
+            return $base_url.$this->item('index_page').$uri;
+        }
 
-        if ($this->item('enable_query_strings') === false) {
-            $suffix = isset($this->config['url_suffix']) ? $this->config['url_suffix'] : '';
-
-            if ($suffix !== '') {
-                if (($offset = strpos($uri, '?')) !== false) {
-                    $uri = substr($uri, 0, $offset).$suffix.substr($uri, $offset);
-                }
-                else {
-                    $uri .= $suffix;
-                }
+        // Check for URL suffix
+        $suffix = isset($this->config['url_suffix']) ? $this->config['url_suffix'] : '';
+        if ($suffix !== '') {
+            // Add suffix before any query string
+            if (($offset = strpos($uri, '?')) === false) {
+                $uri .= $suffix;
             }
-
-            return $base_url.$this->slashItem('index_page').$uri;
-        }
-        elseif (strpos($uri, '?') === false) {
-            $uri = '?'.$uri;
+            else {
+                $uri = substr($uri, 0, $offset).$suffix.substr($uri, $offset);
+            }
         }
 
-        return $base_url.$this->item('index_page').$uri;
+        // Return base URL with URI string
+        return $base_url.$this->slashItem('index_page').$uri;
     }
 
     /**
@@ -328,27 +331,16 @@ class Config implements \ArrayAccess
      */
     protected function uriString($uri)
     {
-        if ($this->item('enable_query_strings') === false) {
+        if (!$this->item('enable_query_strings')) {
             is_array($uri) && $uri = implode('/', $uri);
             return trim($uri, '/');
         }
         elseif (is_array($uri)) {
-            return http_build_query($uri);
+            $uri = http_build_query($uri);
         }
 
+        strpos($uri, '?') === false && $uri = '?'.$uri;
         return $uri;
-    }
-
-    /**
-     * System URL
-     *
-     * @return  string  System URL
-     */
-    public function systemUrl()
-    {
-        global $XY;
-        $x = explode('/', preg_replace('|/*(.+?)/*$|', '\\1', $XY->system_path));
-        return $this->slashItem('base_url').end($x).'/';
     }
 
     /**
@@ -363,7 +355,7 @@ class Config implements \ArrayAccess
         // Check for multiple items
         if (is_array($item)) {
             // Merge into config
-            $this->config = array_merge_recursive($this->config, $item);
+            $this->config = array_replace_recursive($this->config, $item);
         }
         else {
             // Set single item
