@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<phpunit 
+	bootstrap="../../Bootstrap.php"
+	colors="true"
+	convertNoticesToExceptions="true"
+	convertWarningsToExceptions="true"
+	stopOnError="false"
+	stopOnFailure="false"
+	stopOnIncomplete="false"
+	stopOnSkipped="false">
+	<testsuites>
+		<testsuite name="Xylophone Libraries Test Suite">
+			<directory suffix="Test.php">../../Xylophone/libraries</directory>
+		</testsuite>
+	</testsuites>
+	<filter>
+        <whitelist processUncoveredFilesFromWhitelist="true">
+            <directory suffix=".php">../../../system/libraries</directory>
+            <exclude>
+                <directory suffix=".php">../../../system/libraries/Database</directory>
+            </exclude>
+        </whitelist>
+	</filter>
+</phpunit>

@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<phpunit 
+	bootstrap="../../../../Bootstrap.php"
+	colors="true"
+	convertNoticesToExceptions="true"
+	convertWarningsToExceptions="true"
+	stopOnError="false"
+	stopOnFailure="false"
+	stopOnIncomplete="false"
+	stopOnSkipped="false">
+	<php>
+        <const name="DB_DRIVER" value="pdo/mysql"/>
+    </php>
+	<testsuites>
+		<testsuite name="Xylophone Database Test Suite">
+			<directory suffix="Test.php">../../../../Xylophone/database</directory>
+		</testsuite>
+	</testsuites>
+	<filter>
+        <whitelist processUncoveredFilesFromWhitelist="false">
+            <directory suffix=".php">../../../../../system/libraries/Database</directory>
+        </whitelist>
+	</filter>
+</phpunit>

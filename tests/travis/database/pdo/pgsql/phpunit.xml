@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 
 <phpunit 
-	bootstrap="../../Bootstrap.php"
+	bootstrap="../../../../Bootstrap.php"
 	colors="true"
 	convertNoticesToExceptions="true"
 	convertWarningsToExceptions="true"
@@ -13,13 +13,13 @@
         <const name="DB_DRIVER" value="pdo/pgsql"/>
     </php>
 	<testsuites>
-		<testsuite name="Xylophone Test Suite">
-			<directory suffix="Test.php">../../Xylophone/core</directory>
+		<testsuite name="Xylophone Database Test Suite">
+			<directory suffix="Test.php">../../../../Xylophone/database</directory>
 		</testsuite>
 	</testsuites>
 	<filter>
-        <whitelist addUncoveredFilesFromWhitelist="false">
-            <directory suffix=".php">../../../system</directory>
+        <whitelist processUncoveredFilesFromWhitelist="false">
+            <directory suffix=".php">../../../../../system/libraries/Database</directory>
         </whitelist>
 	</filter>
 </phpunit>
