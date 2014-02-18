@@ -30,49 +30,6 @@ namespace Xylophone\core;
 defined('BASEPATH') OR exit('No direct script access allowed');
 
 /**
- * Al Fine Exception
- *
- * This exception may be thrown when the application has completed its output
- * (early) and needs to skip to the end (al fine) of processing and exit cleanly.
- * It is particularly useful when a module takes over the request and generates
- * output in place of the normal controller output (such as a login prompt).
- *
- * @codeCoverageIgnore
- *
- * @package     Xylophone
- * @subpackage  core
- */
-class AlFineException extends \Exception { }
-
-/**
- * Exit Exception
- *
- * This exception may be thrown anywhere the application needs to exit with
- * a message and an error code.
- *
- * @codeCoverageIgnore
- *
- * @package     Xylophone
- * @subpackage  core
- */
-class ExitException extends \Exception { }
-
-/**
- * Autoloader Exception
- *
- * This exception is thrown by the autoloader when a class file cannot be found.
- * Doing so bypasses the fatal class-not-found PHP error and lets the framework
- * catch the exception and try another namespace, generating its own error if
- * none are found.
- *
- * @codeCoverageIgnore
- *
- * @package     Xylophone
- * @subpackage  core
- */
-class AutoloadException extends \Exception { }
-
-/**
  * Xylophone Framework Class
  *
  * @package     Xylophone
@@ -188,6 +145,7 @@ class Xylophone
                     // Check namespaces after application
                     if (!$app && !$ns) {
                         // Fail out
+                        include_once('ExitException.php');
                         $msg = 'The global namespace is reserved for application classes. '.
                             'Please specify a namespace for your additional path in the following file: '.
                             basename($_SERVER['PHP_SELF']);
@@ -207,6 +165,7 @@ class Xylophone
                     }
                     if (!$resolved) {
                         // Fail out
+                        include_once('ExitException.php');
                         $msg = ($app ? 'Your application folder path does not appear to be set correctly.' :
                             'The "'.$ns.'" namespace path does not appear to be set correctly.').
                             ' Please fix it in the following file: '.basename($_SERVER['PHP_SELF']);
@@ -479,7 +438,7 @@ class Xylophone
         try {
             $this->callController($this->router->route) || $this->show404($class.'/'.$method);
         } catch (AlFineException $ex) {
-            // Finished early - nothing to do herek
+            // Finished early - nothing to do here but carry on to the end
         }
 
         // Mark end time, display output unless overridden, and call post_system
@@ -638,7 +597,7 @@ class Xylophone
      * @param   string  $path       Path to source files
      * @return  bool    TRUE on success, otherwise FALSE
      */
-    public function addNamespace($namespace, $path)
+    public function addNamespace($namespace, $path = '')
     {
         // Convert to array
         is_array($namespace) || $namespace = array($namespace => $path);
@@ -966,7 +925,10 @@ class Xylophone
             }
         }
 
-        // File not found - throw exception
+        // File not found - throw exception (unless it WAS the exception)
+        if (trim($class, '\\') == 'Xylophone\core\AutoloadException') {
+            return;
+        }
         throw new AutoloadException('Could not find class "'.$class.'"');
     }
 
