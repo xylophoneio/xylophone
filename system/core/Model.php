@@ -39,12 +39,16 @@ defined('BASEPATH') OR exit('No direct script access allowed');
  * @subpackage  core
  * @link        http://xylophone.io/user_guide/general/models.html
  */
-class Model {
+class Model
+{
     /** @var    object  The Xylophone framework singleton */
     public $XY;
 
     /** @var    array   Config params */
-    public $config;
+    public $config = array();
+
+    /** @var    object  Database object */
+    public $db = null;
 
     /**
      * Constructor
