@@ -25,50 +25,46 @@
  * @since       Version 1.0
  * @filesource
  */
-namespace Xylophone\core;
-
-defined('BASEPATH') OR exit('No direct script access allowed');
 
 /**
- * Application Controller Base Class
+ * Controller Unit Test
  *
- * This is the intended base class for all application controllers.
- * It provides a local reference to the global $XY framework object.
- *
- * @package     Xylophone
- * @subpackage  core
- * @link        http://xylophone.io/user_guide/general/controllers.html
+ * @package Xylophone
  */
-class Controller
+class ControllerTest extends XyTestCase
 {
-    /** @var    object  The Xylophone framework singleton */
-    public $XY;
-
     /**
-     * Constructor
-     *
-     * @return  void
+     * Test __construct()
      */
-    public function __construct()
+    public function testConstruct()
     {
         global $XY;
-        $this->XY = $XY;
+
+        // Mock Xylophone and Controller
+        $XY = (object)array('core' => 'object');
+        $controller = $this->getMock('Xylophone\core\Controller', null, array(), '', false);
+
+        // Call __construct() and verify result
+        $controller->__construct();
+        $this->assertSame($XY, $controller->XY);
     }
 
     /**
-     * Get Magic Method
-     *
-     * Gives access to members of the global $XY object as if they were members
-     * of this controller. Throwback to old non-HMVC CI days.
-     *
-     * @param   string  $key    Member name
-     * @return  mixed   Global $XY member
+     * Test __get()
      */
-    public function __get($key)
+    public function testGet()
     {
-        if (isset($this->XY->$key)) {
-            return $this->XY->$key;
-        }
+        // Set up args
+        $key = 'testobj';
+        $val = (object)array('member' => 'var');
+
+        // Mock Controller and Xylophone
+        $controller = $this->getMock('Xylophone\core\Controller', null, array(), '', false);
+        $controller->XY = (object)array($key => $val);
+
+        // Verify identity and non-existent member
+        $this->assertSame($val, $controller->$key);
+        $this->assertNull($controller->nonexistent);
     }
 }
 
