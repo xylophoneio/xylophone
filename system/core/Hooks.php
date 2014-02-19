@@ -10,7 +10,7 @@
  * Licensed under the Open Software License version 3.0
  *
  * This source file is subject to the Open Software License (OSL 3.0) that is
- * bundled with this package in the files license.txt / license.rst.  It is
+ * bundled with this package in the files license.txt / license.rst. It is
  * also available through the world wide web at this URL:
  * http://opensource.org/licenses/OSL-3.0
  * If you did not receive a copy of the license and are unable to obtain it
@@ -36,7 +36,7 @@ defined('BASEPATH') OR exit('No direct script access allowed');
  *
  * @package     Xylophone
  * @subpackage  core
- * @link        http://xylophone.io/user_guide/libraries/encryption.html
+ * @link        http://xylophone.io/user_guide/general/hooks.html
  */
 class Hooks
 {
@@ -74,7 +74,9 @@ class Hooks
     /**
      * Call Hook
      *
-     * @used-by Xylophone::play()
+     * @used-by Xylophone::playBridge()
+     * @used-by Xylophone::playCoda()
+     * @used-by Xylophone::playVerse()
      *
      * @param   string  $which Hook name
      * @return  bool    TRUE on success, otherwise FALSE
