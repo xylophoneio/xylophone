@@ -35,13 +35,50 @@ defined('BASEPATH') OR exit('No direct script access allowed');
  * This exception may be thrown anywhere the application needs to exit with
  * a message and an error code.
  *
- * @codeCoverageIgnore
- *
  * @package     Xylophone
  * @subpackage  core
  */
 class ExitException extends \Exception
 {
-    // Nothing to see here - just a name
+    /** @var    string  Header string */
+    public $header = 'HTTP/1.1 500 Internal Server Error';
+
+    /** @var    int     Header reponse code */
+    public $response = 500;
+
+    /**
+     * Constructor
+     *
+     * @return  void
+     */
+    public function __construct($message, $code = 0, $header = null, $response = null)
+    {
+        // Call parent constructor first
+        parent::__construct($message, $code);
+
+        // Set header values if provided
+        $header === null || $this->header = $header;
+        $response === null || $this->response = $response;
+    }
+
+    /**
+     * Get header string
+     *
+     * @return  string  Header string
+     */
+    public function getHeader()
+    {
+        return $this->header;
+    }
+
+    /**
+     * Get header response code
+     *
+     * @return  int     Header response code
+     */
+    public function getResponse()
+    {
+        return $this->response;
+    }
 }
 

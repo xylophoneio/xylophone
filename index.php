@@ -243,7 +243,7 @@ try {
     $XY->play($benchmark, $config, $routing);
 } catch (Xylophone\core\ExitException $ex) {
     // Alert user and exit
-    header('HTTP/1.1 503 Service Unavailable.', true, 503);
+    header($ex->getHeader(), true, $ex->getResponse);
     echo $ex->getMessage();
     $code = $ex->getCode();
     exit($code ? $code : EXIT_XY);
