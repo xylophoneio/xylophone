@@ -32,6 +32,15 @@ defined('BASEPATH') OR exit('No direct script access allowed');
 /**
  * Xylophone Framework Class
  *
+ * The exit constants defined here are designed to avoid conflict with other
+ * program exit codes, such as those defined at:
+ *  Standard C/C++ Library (stdlibc):
+ *      http://www.gnu.org/software/libc/manual/html_node/Exit-Status.html
+ *  BSD sysexits.h:
+ *      http://www.gsp.com/cgi-bin/man.cgi?section=3&topic=sysexits
+ *  Bash scripting:
+ *      http://tldp.org/LDP/abs/html/exitcodes.html
+ *
  * @package     Xylophone
  * @subpackage  core
  */
@@ -87,6 +96,36 @@ class Xylophone
 
     /** @var    object  Xylophone singleton instance */
     private static $instance = null;
+
+    /** No errors */
+    const EXIT_SUCCESS = 0;
+
+    /** Generic error exit code */
+    const EXIT_ERROR = 1;
+
+    /** Configuration error exit code */
+    const EXIT_CONFIG = 3;
+
+    /** File not found exit code */
+    const EXIT_UNKNOWN_FILE = 4;
+
+    /** Unknown class exit code */
+    const EXIT_UNKNOWN_CLASS = 5;
+
+    /** Unknown class member exit code */
+    const EXIT_UNKNOWN_METHOD = 6;
+
+    /** Invalid user input exit code */
+    const EXIT_USER_INPUT = 7;
+
+    /** Database error exit code */
+    const EXIT_DATABASE = 8;
+
+    /** Lowest automatically-assigned exit code */
+    const EXIT__AUTO_MIN = 9;
+
+    /** Highest automatically-assigned exit code */
+    const EXIT__AUTO_MAX = 125;
 
     /**
      * Constructor
