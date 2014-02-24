@@ -243,7 +243,8 @@ try {
     $XY->play($benchmark, $config, $routing);
 } catch (Xylophone\core\ExitException $ex) {
     // Alert user and exit
-    header($ex->getHeader(), true, $ex->getResponse);
+    $status = $ex->getResponse();
+    header('HTTP/1.1 '.$status.' '.$ex->getHeader(), true, $status);
     echo $ex->getMessage();
     $code = $ex->getCode();
     exit($code ? $code : EXIT_XY);

@@ -307,3 +307,12 @@ $config['rewrite_short_tags'] = false;
 */
 $config['proxy_ips'] = '';
 
+/*---------------------------------------------------------------
+| Documentation URL
+|----------------------------------------------------------------
+| This is the URL for Xylophone documentation, where smart error
+| pages will link for more information about misused core classes
+| and libraries. The default is the public Xylophone website.
+*/
+$config['docs_url'] = 'http://xylophone.io/api';
+

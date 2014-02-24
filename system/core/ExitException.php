@@ -40,35 +40,25 @@ defined('BASEPATH') OR exit('No direct script access allowed');
  */
 class ExitException extends \Exception
 {
-    /** @var    string  Header string */
-    public $header = 'HTTP/1.1 500 Internal Server Error';
-
     /** @var    int     Header reponse code */
     public $response = 500;
+
+    /** @var    string  Header message */
+    public $header = 'Internal Server Error';
 
     /**
      * Constructor
      *
      * @return  void
      */
-    public function __construct($message, $code = 0, $header = null, $response = null)
+    public function __construct($message, $code = 0, $response = null, $header = null)
     {
         // Call parent constructor first
         parent::__construct($message, $code);
 
         // Set header values if provided
-        $header === null || $this->header = $header;
         $response === null || $this->response = $response;
-    }
-
-    /**
-     * Get header string
-     *
-     * @return  string  Header string
-     */
-    public function getHeader()
-    {
-        return $this->header;
+        $header === null || $this->header = $header;
     }
 
     /**
@@ -79,6 +69,16 @@ class ExitException extends \Exception
     public function getResponse()
     {
         return $this->response;
+    }
+
+    /**
+     * Get header message
+     *
+     * @return  string  Header message
+     */
+    public function getHeader()
+    {
+        return $this->header;
     }
 }
 

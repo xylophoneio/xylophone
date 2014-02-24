@@ -290,13 +290,13 @@ class Router
      *
      * Identifies the 404 or error override route, if defined, and validates it.
      *
-     * @param   bool    $is404  TRUE for 404 route
+     * @param   string  $template   Name of error template to override
      * @return  mixed   FALSE if route doesn't exist, otherwise array of 4+ segments
      */
-    public function getErrorRoute($is404 = false)
+    public function getErrorRoute($template = 'error_general')
     {
         // Select route and return it or FALSE
-        $route = ($is404 ? '404' : 'error').'_override';
+        $route = $template.'_override';
         return empty($this->routes[$route]) ? false : $this->validateRoute($this->routes[$route]);
     }
 }

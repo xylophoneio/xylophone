@@ -82,6 +82,9 @@ class Xylophone
     /** @var    bool    Whether to search for library overrides */
     public $library_search = false;
 
+    /** @var    int     Initial output buffer level for reference */
+    public $init_ob_level = 0;
+
     /** @var    array   Relative path resolution bases */
     protected $resolve_bases = array();
 
@@ -246,6 +249,9 @@ class Xylophone
     {
         // Kill magic quotes for older versions
         $this->isPhp('5.4') || @ini_set('magic_quotes_runtime', 0);
+
+        // Get buffer level
+        $this->init_ob_level = ob_get_level();
 
         // Set environment
         $this->environment = isset($init['environment']) ? $init['environment'] : '';
