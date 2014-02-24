@@ -29,34 +29,6 @@
 /**
  * Xylophone Unit Test
  *
- * Sets up a virtual filesystem for testing the Xylophone framework singleton
- * and its base services as follows:
- *  root
- *  |- xylophone        (base_path)
- *  | |- system         (system_path)
- *  | \- application    (app_path)
- *  |   |- config
- *  |   \- views
- *  |
- *  \- usr
- *    \- share
- *      \- php
- *        \- xylophone
- *          \- config
- *
- * Most tests rely (sometimes indirectly) on the Xylophone instance set up in
- * testTune(), which sets the following parameters:
- * - environment    development
- * - base_path      vfs_base_path/
- * - system_path    vfs_sys_path/
- * - ns_paths       [ '' => vfs_app_path/, share_ns => vfs_share_path/, Mocks => TESTPATH/Mocks/ ]
- * - app_ns         ''
- * - app_path       vfs_app_path/
- * - config_paths   [ share_path/, vfs_app_path/ ]
- * - view_paths     [ views/ => vfs_app_path/views/ ]
- * - override_core  FALSE
- * - library_search TRUE
- *
  * @package     Xylophone
  */
 class XylophoneTest extends XyTestCase
@@ -91,6 +63,21 @@ class XylophoneTest extends XyTestCase
 
     /**
      * Load our virtual filesystem
+     *
+     * Sets up a virtual filesystem as follows:
+     *  root
+     *  |- xylophone        (base_path)
+     *  | |- system         (system_path)
+     *  | \- application    (app_path)
+     *  |   |- config
+     *  |   \- views
+     *  |
+     *  \- usr
+     *    \- share
+     *      \- php
+     *        \- xylophone
+     *          \- config
+     *
      */
     private function loadFilesystem()
     {
