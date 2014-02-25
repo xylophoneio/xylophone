@@ -42,23 +42,23 @@ defined('BASEPATH') OR exit('No direct script access allowed');
  */
 class Logger
 {
+    /** @var    bool    Whether or not the logger can write to the log files */
+    public $enabled = true;
+
     /** @var    string  Path to save log files */
-    protected $path;
-
-    /** @var    int     Logging threshold */
-    protected $threshold = 1;
-
-    /** @var    array   Array of specific levels to log */
-    protected $enabled_levels = array();
-
-    /** @var    string  Format of timestamp for log files */
-    protected $date_fmt = 'Y-m-d H:i:s';
+    public $path;
 
     /** @var    string  Filename extension */
-    protected $file_ext;
+    public $file_ext;
 
-    /** @var    bool    Whether or not the logger can write to the log files */
-    protected $enabled = true;
+    /** @var    int     Logging threshold */
+    public $threshold = 1;
+
+    /** @var    array   Array of specific levels to log */
+    public $enabled_levels = array();
+
+    /** @var    string  Format of timestamp for log files */
+    public $date_fmt = 'Y-m-d H:i:s';
 
     /** @var    array   Predefined logging levels */
     protected $levels = array(
@@ -84,12 +84,18 @@ class Logger
 
         // Get path and extension
         $this->path = $XY->config['log_path'];
-        $this->path || $this->path = $XY->app_path.'logs/';
+        if ($this->path) {
+            $this->path = rtrim($this->path, DIRECTORY_SEPARATOR).DIRECTORY_SEPARATOR;
+        }
+        else {
+            $this->path = $XY->app_path.'logs'.DIRECTORY_SEPARATOR;
+        }
         $this->file_ext = $XY->config['logfile_extension'];
         $this->file_ext = $this->file_ext ? ltrim($this->file_ext, '.') : 'php';
 
-        // Make path if no present
-        file_exists($this->path) || mkdir($this->path, DIR_WRITE_MODE, true);
+        // Make path if not present
+        $mode = defined('DIR_WRITE_MODE') ? DIR_WRITE_MODE : 0777;
+        file_exists($this->path) || mkdir($this->path, $mode, true);
 
         // Disable if path not writable
         $this->enabled = (is_dir($this->path) && $XY->isWritable($this->path));
@@ -103,6 +109,7 @@ class Logger
         elseif ($threshold === 'none') {
             // Disable logging
             $this->threshold = 0;
+            $this->enabled = false;
         }
         elseif (is_string($threshold) && isset($this->levels[$threshold])) {
             // Convert level name to number
@@ -148,7 +155,8 @@ class Logger
         // Set file path, check if exists, and open
         $filepath = $this->path.'log-'.date('Y-m-d').'.'.$this->file_ext;
         $newfile = !file_exists($filepath);
-        if (!($fp = @fopen($filepath, FOPEN_WRITE_CREATE))) {
+        $mode = defined('FOPEN_WRITE_CREATE') ? FOPEN_WRITE_CREATE : 'ab';
+        if (!($fp = @fopen($filepath, $mode))) {
             return;
         }
 
@@ -162,7 +170,8 @@ class Logger
         fwrite($fp, $message);
         flock($fp, LOCK_UN);
         fclose($fp);
-        $newfile && @chmod($filepath, FILE_WRITE_MODE);
+        $mod = defined('FILE_WRITE_MODE') ? FILE_WRITE_MODE : 0666;
+        $newfile && @chmod($filepath, $mod);
     }
 
     /**
