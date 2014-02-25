@@ -49,16 +49,26 @@ class ExitException extends \Exception
     /**
      * Constructor
      *
+     * Sets exception parameters and clears any buffered output.
+     *
      * @return  void
      */
     public function __construct($message, $code = 0, $response = null, $header = null)
     {
+        global $XY;
+
         // Call parent constructor first
         parent::__construct($message, $code);
 
         // Set header values if provided
         $response === null || $this->response = $response;
         $header === null || $this->header = $header;
+
+        // Clear output buffers
+        $level = isset($XY->init_ob_level) ? $XY->init_ob_level : 0;
+        while (ob_get_level() > $level) {
+            ob_end_clean();
+        }
     }
 
     /**

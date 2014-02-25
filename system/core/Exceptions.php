@@ -277,15 +277,12 @@ class Exceptions
         }
 
         // Format error and echo
-        // Since we're about to exit anyway, there's no need to throw and exception
         $args = array('severity' => $severity, 'filepath' => $filepath, 'line' => $line);
         echo $this->formatError('PHP Error', $message, 'error_php', $args);
     }
 
     /**
      * Format an error message with a template or override
-     *
-     * Also clears any buffered output to make a clean slate for the error page.
      *
      * @param   string  $heading    Error heading
      * @param   mixed   $message    Error message or array of messages
@@ -296,11 +293,6 @@ class Exceptions
     public function formatError($heading, $message, $template = 'error_general', array $args = array())
     {
         global $XY;
-
-        // Clear output buffers
-        while (ob_get_level() > $XY->init_ob_level) {
-            ob_end_clean();
-        }
 
         // Check for CLI
         $cli = $XY->isCli();

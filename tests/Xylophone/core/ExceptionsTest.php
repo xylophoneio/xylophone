@@ -99,6 +99,7 @@ class ExceptionsTest extends XyTestCase
         $exceptions = $this->getMock('Xylophone\core\Exceptions', array('formatError'), array(), '', false);
 
         // Set up calls
+        $XY->init_ob_level = ob_get_level();
         $XY->expects($this->once())->method('isCli')->will($this->returnValue(false));
         $XY->logger->expects($this->once())->method('error')->with($this->equalTo($heading.': '.$page));
         $exceptions->expects($this->once())->method('formatError')->with($this->equalTo($heading),
@@ -128,6 +129,7 @@ class ExceptionsTest extends XyTestCase
         $exceptions = $this->getMock('Xylophone\core\Exceptions', array('formatError'), array(), '', false);
 
         // Set up calls
+        $XY->init_ob_level = ob_get_level();
         $XY->expects($this->once())->method('isCli')->will($this->returnValue(true));
         $exceptions->expects($this->once())->method('formatError')->with($this->equalTo($heading),
             $this->stringContains('not found'), $this->equalTo('error_404'), $this->equalTo(array('page' => $page)))->
@@ -174,6 +176,7 @@ class ExceptionsTest extends XyTestCase
         $exceptions = $this->getMock('Xylophone\core\Exceptions', array('getTrace', 'formatError'), array(), '', false);
 
         // Set up calls
+        $XY->init_ob_level = ob_get_level();
         $XY->config = array('docs_url' => $docs);
         $XY->app_path = $app_path;
         $XY->system_path = $sys_path;
@@ -217,6 +220,7 @@ class ExceptionsTest extends XyTestCase
         $exceptions = $this->getMock('Xylophone\core\Exceptions', array('getTrace', 'formatError'), array(), '', false);
 
         // Set up calls
+        $XY->init_ob_level = ob_get_level();
         $XY->output->status_codes = array($response => $header);
         $XY->config['docs_url'] = $docs;
         $exceptions->expects($this->once())->method('getTrace')->will($this->returnValue($trace));
@@ -258,6 +262,7 @@ class ExceptionsTest extends XyTestCase
         $exceptions = $this->getMock('Xylophone\core\Exceptions', array('getTrace', 'formatError'), array(), '', false);
 
         // Set up calls
+        $XY->init_ob_level = ob_get_level();
         $XY->output->status_codes = array(500 => $header);
         $exceptions->expects($this->once())->method('getTrace')->will($this->returnValue($trace));
         $exceptions->expects($this->once())->method('formatError')->
@@ -296,6 +301,7 @@ class ExceptionsTest extends XyTestCase
         $exceptions = $this->getMock('Xylophone\core\Exceptions', array('getTrace', 'formatError'), array(), '', false);
 
         // Set up calls
+        $XY->init_ob_level = ob_get_level();
         $exceptions->expects($this->once())->method('getTrace')->will($this->returnValue($trace));
         $exceptions->expects($this->once())->method('formatError')->
             with($this->equalTo($heading), $this->equalTo($message), $this->equalTo($template), $this->equalTo($args))->
@@ -375,14 +381,9 @@ class ExceptionsTest extends XyTestCase
         $XY->expects($this->once())->method('isCli')->will($this->returnValue(false));
         $XY->view_paths = array($this->vfs_app_path.'/views/', $dir->url().'/');
 
-        // Set up buffer level
-        $XY->init_ob_level = ob_get_level();
-        ob_start();
-
         // Call formatError() and verify results
         $output = $heading.' <p>'.$msg1.'</p><p>'.$msg2.'</p> '.implode(' ', $args);
         $this->assertEquals($output, $exceptions->formatError($heading, array($msg1, $msg2), $template, $args));
-        $this->assertEquals($XY->init_ob_level, ob_get_level());
     }
 
     /**
@@ -409,9 +410,6 @@ class ExceptionsTest extends XyTestCase
         // Set up calls
         $XY->expects($this->once())->method('isCli')->will($this->returnValue(true));
         $XY->view_paths = array($this->vfs_app_path.'/views/');
-
-        // Set up buffer level
-        $XY->init_ob_level = ob_get_level();
 
         // Call formatError() and verify results
         $output = $heading." \t".$message;
@@ -444,15 +442,12 @@ class ExceptionsTest extends XyTestCase
         $exceptions = $this->getMock('Xylophone\core\Exceptions', null, array(), '', false);
 
         // Set up calls
+        $XY->routed = new stdClass();
         $XY->expects($this->once())->method('isCli')->will($this->returnValue(false));
         $XY->router->expects($this->once())->method('getErrorRoute')->with($this->equalTo($template))->
             will($this->returnValue($route1));
         $XY->load->expects($this->once())->method('controller')->
             with($this->equalTo($route2), $this->equalTo('routed'))->will($this->returnValue(true));
-
-        // Set up buffer level and routed
-        $XY->init_ob_level = ob_get_level();
-        $XY->routed = new stdClass();
 
         // Call formatError() and verify results
         $exceptions->formatError($heading, $message, $template, $args2);

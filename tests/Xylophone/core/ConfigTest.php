@@ -59,8 +59,12 @@ class ConfigTest extends XyTestCase
      */
     public function testConstructNoConfig()
     {
-        // Mock Config and set up call
+        global $XY;
+
+        // Mock Xylophone and Config and set up calls
+        $XY = new stdClass();
         $config = $this->getMock('Xylophone\core\Config', array('get'), array(), '', false);
+        $XY->init_ob_level = ob_get_level();
         $config->expects($this->once())->method('get')->will($this->returnValue(false));
 
         // Call __construct() (yes, again) and confirm exception
@@ -73,8 +77,12 @@ class ConfigTest extends XyTestCase
      */
     public function testConstructBadConfig()
     {
-        // Mock Config and set up call
+        global $XY;
+
+        // Mock Xylophone and Config and set up call
+        $XY = new stdClass();
         $config = $this->getMock('Xylophone\core\Config', array('get'), array(), '', false);
+        $XY->init_ob_level = ob_get_level();
         $config->expects($this->once())->method('get')->will($this->returnValue('/some/bad/path'));
 
         // Call __construct() (some more) and confirm exception

@@ -38,7 +38,10 @@ class ExitExceptionTest extends XyTestCase
      */
     public function testConstruct()
     {
-        // Mock ExitException
+        global $XY;
+
+        // Mock Xylophone and ExitException
+        $XY = new stdClass();
         $exit = $this->getMock('Xylophone\core\ExitException', null, array(), '', false);
 
         // Set up args
@@ -51,12 +54,17 @@ class ExitExceptionTest extends XyTestCase
         $this->assertEquals(500, $exit->response);
         $this->assertEquals('Internal Server Error', $exit->header);
 
+        // Set up buffer level
+        $XY->init_ob_level = ob_get_level();
+        ob_start();
+
         // Call __construct() and verify results
         $exit->__construct($message, $code, $response, $header);
         $this->assertEquals($message, $exit->getMessage());
         $this->assertEquals($code, $exit->getCode());
         $this->assertEquals($response, $exit->response);
         $this->assertEquals($header, $exit->header);
+        $this->assertEquals($XY->init_ob_level, ob_get_level());
     }
 
     /**
