@@ -70,21 +70,21 @@ class Lang
         global $XY;
 
         if (is_array($langfile)) {
-            $retval = array();
+            $return && $retval = array();
 
             foreach ($langfile as $lang) {
                 $ret = $this->load($lang, $idiom, $return, $add_suffix, $alt_path);
                 if (!$ret) {
                     return false;
                 }
-                $retval[$lang] = $ret;
+                $return && $retval[$lang] = $ret;
             }
 
             return $return ? $retval : true;
         }
 
         $langfile = str_replace('.php', '', $langfile);
-        $add_suffix === true && $langfile = str_replace('_lang', '', $langfile).'_lang';
+        $add_suffix && $langfile = str_replace('_lang', '', $langfile).'_lang';
         $langfile .= '.php';
 
         if (empty($idiom) || !ctype_alpha($idiom)) {
