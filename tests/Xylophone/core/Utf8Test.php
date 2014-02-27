@@ -75,7 +75,7 @@ class Utf8Test extends XyTestCase
         $utf8->iconv_enabled = false;
 
         // Set up arg and call cleanString()
-        $str = chr(0xC4).chr(0xA7).chr(0xC7).chr(0xCC).chr(0xCC);
+        $str = "\xC4\xA7\xC7\xCC\xCC";
         $this->assertEquals($str, $utf8->cleanString($str));
     }
 
@@ -90,7 +90,7 @@ class Utf8Test extends XyTestCase
         $utf8->iconv_enabled = true;
 
         // Set up arg and call cleanString()
-        $str = chr(0xC4).chr(0xA7).chr(0xC7).chr(0xCC).chr(0xCC);
+        $str = "\xC4\xA7\xC7\xCC\xCC";
         $this->assertEquals($str, $utf8->cleanString($str));
     }
 
@@ -106,7 +106,7 @@ class Utf8Test extends XyTestCase
 
         // Set up args and call cleanString()
         $clean = 'hi';
-        $str = $clean.chr(0xC4).chr(0xFF);
+        $str = $clean."\x80\x81";
         $this->assertEquals($clean, $utf8->cleanString($str));
     }
 
@@ -171,7 +171,7 @@ class Utf8Test extends XyTestCase
 
         // Call isAscii() with ASCII and not
         $this->assertTrue($utf8->isAscii('ascii string'));
-        $this->assertFalse($utf8->isAscii(chr(0xF0).chr(0xBA)));
+        $this->assertFalse($utf8->isAscii("\xF0\xBA"));
     }
 }
 
