@@ -90,8 +90,8 @@ class Utf8
      */
     public function cleanString($str)
     {
-        // Convert string if ASCII
-        return ($this->isAscii($str) || !$this->iconv_enabled) ? $str : @iconv('UTF-8', 'UTF-8//IGNORE', $str);
+        // Convert string if enabled and not ASCII
+        return (!$this->iconv_enabled || $this->isAscii($str)) ? $str : @iconv('UTF-8', 'UTF-8//IGNORE', $str);
     }
 
     /**
