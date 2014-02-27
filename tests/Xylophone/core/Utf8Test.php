@@ -102,10 +102,11 @@ class Utf8Test extends XyTestCase
         // Mock Utf8 and set up call
         $utf8 = $this->getMock('Xylophone\core\Utf8', array('isAscii'), array(), '', false);
         $utf8->expects($this->once())->method('isAscii')->will($this->returnValue(false));
+        $utf8->iconv_enabled = true;
 
         // Set up args and call cleanString()
-        $str = chr(0xC4).chr(0xA7).chr(0xC7).chr(0xCC).chr(0xCC);
-        $clean = 'ħ';
+        $clean = 'hi';
+        $str = $clean.chr(0xC4).chr(0xFF);
         $this->assertEquals($clean, $utf8->cleanString($str));
     }
 
