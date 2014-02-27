@@ -30,42 +30,6 @@ namespace Xylophone\core;
 defined('BASEPATH') OR exit('No direct script access allowed');
 
 /**
- * Resource Unsupported Exception
- *
- * This exception may be thrown from the constructor of any class which deems
- * itself unsupported by the environment. The class may specify an alternate
- * class to try loading in place of itself. The exception is mainly intended
- * for drivers such as Cache to swap out a different driver when the configured
- * one won't work.
- *
- * Loader will catch this exception and check for an alternate class, which it
- * will try to load instead. There is a hard limit of 5 attempts at loading a
- * class before Loader will quit trying, regardless of further exceptions, to
- * prevent infinite looping.
- *
- * @package     Xylophone
- * @subpackage  core
- */
-class UnsupportedException extends \Exception
-{
-    /**  @var   string  Alternate class to load */
-    public $alternate = '';
-
-    /**
-     * Constructor
-     *
-     * @param   string  $alternate  Alternate class name
-     * @return  void
-     */
-    public function __construct($alternate = '')
-    {
-        // Call parent ctor and set alternate
-        parent::__construct();
-        $this->alternate = $alternate;
-    }
-}
-
-/**
  * Loader Class
  *
  * Loads framework components.
