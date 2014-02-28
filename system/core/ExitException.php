@@ -32,8 +32,19 @@ defined('BASEPATH') OR exit('No direct script access allowed');
 /**
  * Exit Exception
  *
- * This exception may be thrown anywhere the application needs to exit with
- * a message and an error code.
+ * This exception may be thrown anywhere the application needs to exit. It will
+ * be caught by index.php, which will output an error header, display any message
+ * provided, and exit with the code provided or EXIT_XY.
+ *
+ * Throwing an exception instead of directly exiting supports unit testing, during
+ * which an exit call will terminate the test.
+ *
+ * ExitException accepts an optional message and error code with which to exit.
+ * It also accepts an optional header response code (instead of the default 500),
+ * and an optional header message. If a header code is provided without an
+ * explicit message, and the Output class has been loaded, and the code is
+ * defined (typically all true), the standard header message for the code will
+ * be automatically provided.
  *
  * @package     Xylophone
  * @subpackage  core
@@ -53,7 +64,7 @@ class ExitException extends \Exception
      *
      * @return  void
      */
-    public function __construct($message, $code = 0, $response = null, $header = null)
+    public function __construct($message = '', $code = 0, $response = null, $header = null)
     {
         global $XY;
 
@@ -62,7 +73,16 @@ class ExitException extends \Exception
 
         // Set header values if provided
         $response === null || $this->response = $response;
-        $header === null || $this->header = $header;
+        if ($header === null) {
+            // If Output is loaded and the status is defined, set the header message
+            if ($response !== null && isset($XY->output->status_codes[$response])) {
+                $this->header = $XY->output->status_codes[$response];
+            }
+        }
+        else {
+            // Set the specified header message
+            $this->header = $header;
+        }
 
         // Clear output buffers
         $level = isset($XY->init_ob_level) ? $XY->init_ob_level : 0;

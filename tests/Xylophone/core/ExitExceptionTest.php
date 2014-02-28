@@ -40,15 +40,17 @@ class ExitExceptionTest extends XyTestCase
     {
         global $XY;
 
-        // Mock Xylophone and ExitException
+        // Mock Xylophone, Output, and ExitException
         $XY = new stdClass();
+        $XY->output = new stdClass();
         $exit = $this->getMock('Xylophone\core\ExitException', null, array(), '', false);
 
         // Set up args
         $message = 'something went wrong';
         $code = 13;
-        $response = 503;
-        $header = 'Oops';
+        $response = 501;
+        $header = 'Not Implemented';
+        $XY->output->status_codes = array($response => $header);
 
         // Check defaults
         $this->assertEquals(500, $exit->response);
@@ -59,12 +61,38 @@ class ExitExceptionTest extends XyTestCase
         ob_start();
 
         // Call __construct() and verify results
-        $exit->__construct($message, $code, $response, $header);
+        $exit->__construct($message, $code, $response);
         $this->assertEquals($message, $exit->getMessage());
         $this->assertEquals($code, $exit->getCode());
         $this->assertEquals($response, $exit->response);
         $this->assertEquals($header, $exit->header);
         $this->assertEquals($XY->init_ob_level, ob_get_level());
+    }
+
+    /**
+     * Test __construct() with a header message
+     */
+    public function testConstructHeader()
+    {
+        global $XY;
+
+        // Mock Xylophone and ExitException
+        $XY = new stdClass();
+        $exit = $this->getMock('Xylophone\core\ExitException', null, array(), '', false);
+
+        // Set up args
+        $message = 'some message';
+        $code = 42;
+        $response = 503;
+        $header = 'Oops';
+
+        // Set up buffer level
+        $XY->init_ob_level = ob_get_level();
+
+        // Call __construct() and verify results
+        $exit->__construct($message, $code, $response, $header);
+        $this->assertEquals($response, $exit->response);
+        $this->assertEquals($header, $exit->header);
     }
 
     /**
