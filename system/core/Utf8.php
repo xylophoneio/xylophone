@@ -90,8 +90,18 @@ class Utf8
      */
     public function cleanString($str)
     {
-        // Convert string if enabled and not ASCII
-        return (!$this->iconv_enabled || $this->isAscii($str)) ? $str : @iconv('UTF-8', 'UTF-8//IGNORE', $str);
+        // Return string if disabled or ASCII
+        if (!$this->iconv_enabled || $this->isAscii($str)) {
+            return $str;
+        }
+
+        // Try "converting" the string, ignoring bad characters.
+        // This call behaves differently in PHP 5.3 and > 5.3, perhaps
+        // also depending on glibc version of the server. In short, later
+        // versions return FALSE on a non-UTF8 string, so all we can
+        // consistently do is scrap the whole string if it fails.
+        $ret = @iconv('UTF-8', 'UTF-8//IGNORE', $str);
+        return ($ret === $str) ? $str : '';
     }
 
     /**

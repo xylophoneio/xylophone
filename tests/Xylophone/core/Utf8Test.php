@@ -104,10 +104,8 @@ class Utf8Test extends XyTestCase
         $utf8->expects($this->once())->method('isAscii')->will($this->returnValue(false));
         $utf8->iconv_enabled = true;
 
-        // Set up args and call cleanString()
-        $clean = 'hi';
-        $str = $clean."\x80\x81";
-        $this->assertEquals($clean, $utf8->cleanString($str));
+        // Call cleanString()
+        $this->assertEmpty($utf8->cleanString("\x80\x81"));
     }
 
     /**
