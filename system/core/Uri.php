@@ -39,7 +39,7 @@ defined('BASEPATH') OR exit('No direct script access allowed');
  * @link        http://xylophone.io/user_guide/libraries/uri.html
  */
 
-class URI
+class Uri
 {
     /** @var    string  Current URI string */
     public $uri_string = '';
