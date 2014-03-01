@@ -76,15 +76,15 @@ class Router
             // Add directory segment if provided
             $segments = array();
             $dir_trig = $XY->config['directory_trigger'];
-            !isset($_GET[$dir_trig]) || $segments[] = trim($XY->uri->filterUri($_GET[$dir_trig]));
+            isset($_GET[$dir_trig]) && $segments[] = trim($XY->uri->filterUri($_GET[$dir_trig]));
 
             // Add controller segment
-            $class = trim($XY->uri->filterUri($_GET[$ctl_trig]));
+            $class = trim($XY->uri->filterUri($_GET[$ctlr_trig]));
             $segments[] = $class;
 
             // Add function segment if provided
             $func_trig = $XY->config['function_trigger'];
-            !isset($_GET[$func_trig]) || $segments[] = trim($XY->uri->filterUri($_GET[$func_trig]));
+            isset($_GET[$func_trig]) && $segments[] = trim($XY->uri->filterUri($_GET[$func_trig]));
 
             // Determine if segments point to a valid route
             ($this->route = $this->validateRoute($segments)) || $XY->show404(implode('/', $segments));
@@ -137,7 +137,7 @@ class Router
                     $match_count = count($matches);
 
                     // Determine how many parameters the callback has.
-                    $reflection = new ReflectionFunction($val);
+                    $reflection = new \ReflectionFunction($val);
                     $param_count = $reflection->getNumberOfParameters();
 
                     // Are there more parameters than matches?
@@ -204,15 +204,16 @@ class Router
             $ctlrs = 'controllers'.DIRECTORY_SEPARATOR;
 
             // Iterate route segments
-            while (count($route)) {
+            $segs = $route;
+            while (count($segs)) {
                 // Get next segment and build file path
-                $seg = array_shift($route);
+                $seg = array_shift($segs);
                 $file = $path.$sub.$ctlrs.$seg;
 
                 // Is this a controller file in the current path?
                 if (file_exists($file.'.php')) {
                     // Found our controller - return route stack
-                    return $this->makeStack($ns, $sub.$ctlrs, $seg, $route);
+                    return $this->makeStack($ns, $sub.$ctlrs, $seg, $segs);
                 }
 
                 // Is this a subdirectory under controllers or our current path?
