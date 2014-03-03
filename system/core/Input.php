@@ -47,19 +47,19 @@ class Input
     public $user_agent = false;
 
     /** @var    bool    Allow GET array or set to empty */
-    protected $allow_get_array = true;
-
-    /** @var    bool    Standardize new lines flag */
-    protected $standardize_newlines = true;
+    public $allow_get_array = true;
 
     /** @var    bool    Enable XSS filtering for all GET, POST, and COOKIE data */
-    protected $enable_xss = false;
+    public $enable_xss = false;
 
     /** @var    bool    Enable CSRF cookie token */
-    protected $enable_csrf = false;
+    public $enable_csrf = false;
 
     /** @var    array   List of all HTTP request headers */
     protected $headers = array();
+
+    /** @var    string  Input stream source - to override during testing */
+    protected $input_source = 'php://input';
 
     /** @var    array   Input stream data - parsed from php://input at runtime */
     protected $input_stream = null;
@@ -105,7 +105,8 @@ class Input
         }
         elseif (($count = preg_match_all('/(?:^[^\[]+)|\[[^]]*\]/', $index, $matches)) > 1) {
             // Index contains array notation
-            $value = $array;
+            // Set reference to top-level array so we don't copy the whole thing
+            $value =& $array;
             for ($i = 0; $i < $count; $i++) {
                 $key = trim($matches[0][$i], '[]');
 
@@ -114,10 +115,13 @@ class Input
                     break;
                 }
 
+                // Fail if key not found
                 if (!isset($value[$key])) {
                     return null;
                 }
-                $value = $value[$key];
+
+                // Recurse reference into sub-array
+                $value =& $value[$key];
             }
         }
         else {
@@ -136,20 +140,15 @@ class Input
      */
     public function get($index = null, $xss_clean = false)
     {
+        global $XY;
+
         // Check if a field has been provided
         if ($index === null) {
-            if (empty($_GET)) {
-                return array();
-            }
-            $get = array();
-
-            // loop through the full _GET array
-            foreach (array_keys($_GET) as $key) {
-                $get[$key] = $this->fetchFromArray($_GET, $key, $xss_clean);
-            }
-            return $get;
+            // No - return entire array, cleaned on request
+            return $xss_clean ? array_map(array($XY->security, 'xssClean'), $_GET) : $_GET;
         }
 
+        // Return requested element
         return $this->fetchFromArray($_GET, $index, $xss_clean);
     }
 
@@ -162,20 +161,15 @@ class Input
      */
     public function post($index = null, $xss_clean = false)
     {
+        global $XY;
+
         // Check if a field has been provided
         if ($index === null) {
-            if (empty($_POST)) {
-                return array();
-            }
-            $post = array();
-
-            // Loop through the full _POST array and return it
-            foreach (array_keys($_POST) as $key) {
-                $post[$key] = $this->fetchFromArray($_POST, $key, $xss_clean);
-            }
-            return $post;
+            // No - return entire array, cleaned on request
+            return $xss_clean ? array_map(array($XY->security, 'xssClean'), $_POST) : $_POST;
         }
 
+        // Return requested element
         return $this->fetchFromArray($_POST, $index, $xss_clean);
     }
 
@@ -239,15 +233,13 @@ class Input
     public function inputStream($index = '', $xss_clean = false)
     {
         // The input stream can only be read once - check if we have already done so
-        if (is_array($this->input_stream)) {
-            return $this->fetchFromArray($this->input_stream, $index, $xss_clean);
-        }
-
-        // Parse the input stream in our cache var
-        parse_str(file_get_contents('php://input'), $this->input_stream);
         if (!is_array($this->input_stream)) {
-            $this->input_stream = array();
-            return null;
+            // Parse the input stream in our cache var
+            parse_str(file_get_contents($this->input_source), $this->input_stream);
+            if (!is_array($this->input_stream) || empty($this->input_stream)) {
+                $this->input_stream = array();
+                return null;
+            }
         }
 
         return $this->fetchFromArray($this->input_stream, $index, $xss_clean);
@@ -293,7 +285,29 @@ class Input
             $expire = time() - 86500;
         }
 
-        setcookie($prefix.$name, $value, $expire, $path, $domain, $secure, $httponly);
+        $this->xySetCookie($prefix.$name, $value, $expire, $path, $domain, $secure, $httponly);
+    }
+
+    /**
+     * Internal Set cookie
+     *
+     * This abstraction of the setcookie call allows overriding for unit testing
+     *
+     * @codeCoverageIgnore
+     *
+     * @param   string  $name       Cookie name or an array containing parameters
+     * @param   string  $value      Cookie value
+     * @param   int     $expire     Cookie expiration time in seconds
+     * @param   string  $path       Cookie path (default: '/')
+     * @param   string  $domain     Cookie domain (e.g.: '.yourdomain.com')
+     * @param   bool    $secure     Whether to only transfer cookies via SSL
+     * @param   bool    $httponly   Whether to only makes the cookie accessible via HTTP (no javascript)
+     * @return  void
+     */
+    protected function xySetCookie($name, $value, $expire, $path, $domain, $secure, $httponly)
+    {
+        // By default, just call setcookie()
+        setcookie($name, $value, $expire, $path, $domain, $secure, $httponly);
     }
 
     /**
@@ -310,6 +324,7 @@ class Input
         if ($this->ip_address !== false) {
             return $this->ip_address;
         }
+
         $proxy_ips = $XY->config['proxy_ips'];
         empty($proxy_ips) || is_array($proxy_ips) || $proxy_ips = explode(',', str_replace(' ', '', $proxy_ips));
         $this->ip_address = $this->server('REMOTE_ADDR');
@@ -343,7 +358,7 @@ class Input
                     }
 
                     // We have a subnet ... now the heavy lifting begins
-                    isset($separator) || $separator = $this->validIp($this->ip_address, 'ipv6') ? ':' : '.';
+                    isset($separator) || $separator = $this->validIp($this->ip_address, 'ipv4') ? '.' : ':';
 
                     // If the proxy entry doesn't match the IP protocol - skip it
                     if (strpos($proxy_ips[$i], $separator) === false) {
@@ -357,8 +372,8 @@ class Input
                             $colons = str_repeat(':', 9 - substr_count($this->ip_address, ':'));
                             $ip = explode(':', str_replace('::', $colons, $this->ip_address));
 
-                            for ($i = 0; $i < 8; $i++) {
-                                $ip[$i] = intval($ip[$i], 16);
+                            for ($j = 0; $j < 8; $j++) {
+                                $ip[$j] = intval($ip[$j], 16);
                             }
 
                             $sprintf = '%016b%016b%016b%016b%016b%016b%016b%016b';
@@ -428,7 +443,7 @@ class Input
      *
      * @return  mixed   User Agent string or NULL if it doesn't exist
      */
-    public function user_agent()
+    public function userAgent()
     {
         if ($this->user_agent !== false) {
             return $this->user_agent;
@@ -452,44 +467,33 @@ class Input
     {
         global $XY;
 
-        // It would be "wrong" to unset any of these GLOBALS.
-        $protected = array(
-            '_SERVER',
-            '_GET',
-            '_POST',
-            '_FILES',
-            '_REQUEST',
-            '_SESSION',
-            '_ENV',
-            'GLOBALS',
-            'HTTP_RAW_POST_DATA',
-            'system_folder',
-            'application_folder',
-            'BM',
-            'EXT',
-            'CFG',
-            'URI',
-            'RTR',
-            'OUT',
-            'IN'
-        );
-
         // Unset globals for security.
         // This is effectively the same as register_globals = off
         // PHP 5.4 no longer has the register_globals functionality.
         if (!$XY->isPhp('5.4')) {
-            foreach (array($_GET, $_POST, $_COOKIE) as $global) {
+            // It would be "wrong" to unset any of these GLOBALS.
+            $protected = array(
+                '_SERVER',
+                '_GET',
+                '_POST',
+                '_FILES',
+                '_REQUEST',
+                '_SESSION',
+                '_ENV',
+                'GLOBALS',
+                'HTTP_RAW_POST_DATA'
+            );
+
+            // Use references here to prevent duplicating the arrays
+            $globals = array(&$_GET, &$_POST, &$_COOKIE);
+
+            foreach ($globals as &$global) {
                 if (is_array($global)) {
                     foreach ($global as $key => $val) {
                         if (!in_array($key, $protected)) {
-                            global $$key;
-                            $$key = null;
+                            $GLOBALS[$key] = null;
                         }
                     }
-                }
-                elseif (!in_array($global, $protected)) {
-                    global $$global;
-                    $$global = null;
                 }
             }
         }
@@ -514,7 +518,7 @@ class Input
         // Clean $_COOKIE Data
         if (is_array($_COOKIE) && count($_COOKIE) > 0) {
             // Also get rid of specially treated cookies that might be set by a server
-            // or silly application, that are of no use to a CI application anyway
+            // or silly application, that are of no use to an XY application anyway
             // but that when present will trip our 'Disallowed Key Characters' alarm
             // http://www.ietf.org/rfc/rfc2109.txt
             // note that the key names below are single quoted strings, and are not PHP variables
@@ -522,9 +526,10 @@ class Input
             unset($_COOKIE['$Path']);
             unset($_COOKIE['$Domain']);
 
-            foreach ($_COOKIE as $key => $val) {
-                if (($cookie_key = $this->cleanInputKeys($key)) !== false) {
-                    $_COOKIE[$cookie_key] = $this->cleanInputData($val);
+            // Copy keys so unseting any doesn't goof the loop
+            foreach (array_keys($_COOKIE) as $key) {
+                if (($cookie_key = $this->cleanInputKeys($key, false)) !== false) {
+                    $_COOKIE[$cookie_key] = $this->cleanInputData($_COOKIE[$key]);
                 }
                 else {
                     unset($_COOKIE[$key]);
@@ -536,7 +541,7 @@ class Input
         $_SERVER['PHP_SELF'] = strip_tags($_SERVER['PHP_SELF']);
 
         // CSRF Protection check
-        $this->enable_csrf && !$XY->isCli() && $XY->security->csrf_verify();
+        $this->enable_csrf && !$XY->isCli() && $XY->security->csrfVerify();
 
         $XY->logger->debug('Global POST, GET and COOKIE data sanitized');
     }
@@ -567,8 +572,8 @@ class Input
         // it will probably not exist in future versions at all.
         !$XY->isPhp('5.4') && get_magic_quotes_gpc() && $str = stripslashes($str);
 
-        // Clean UTF-8 if supported
-        $XY->utf8->enabled && $str = $XY->utf8->clean_string($str);
+        // Clean UTF-8
+        $str = $XY->utf8->cleanString($str);
 
         // Remove control characters
         $str = $XY->output->removeInvisibleCharacters($str);
@@ -576,18 +581,20 @@ class Input
         // Should we filter the input data?
         $this->enable_xss && $str = $XY->security->xssClean($str);
 
-        // Standardize newlines if needed
-        $this->standardize_newlines && $str = preg_replace('/(?:\r\n|[\r\n])/', PHP_EOL, $str);
+        // Standardize newlines
+        $str = preg_replace('/(?:\r\n|[\r\n])/', PHP_EOL, $str);
 
         return $str;
     }
 
     /**
-     * Clean Keys
+     * Clean Input Keys
      *
      * Internal method that helps to prevent malicious users
      * from trying to exploit keys we make sure that keys are
      * only named with alpha-numeric text and a few other items.
+     *
+     * @throws  Xylophone\core\ExitException
      *
      * @param   string  $str    Input string
      * @param   string  $fatal  Whether an invalid key terminates the app
@@ -597,19 +604,24 @@ class Input
     {
         global $XY;
 
-        if (!preg_match('/^[a-z0-9:_\/|-]+$/i', $str)) {
-            if (!$fatal) {
-                return false;
-            }
-            $XY->output->setStatusHeader(503);
-            echo 'Disallowed Key Characters.';
-            exit(EXIT_USER_INPUT);
+        // Validate key characters
+        if (preg_match('/^[a-z0-9:_\/|-]+$/i', $str)) {
+            // Return clean key
+            return $str;
         }
 
-        // Clean UTF-8 if supported
-        $XY->utf8->enabled && $str = $XY->utf8->clean_string($str);
+        // Clean UTF-8
+        $str = $XY->utf8->cleanString($str);
+        if (!empty($str)) {
+            // Return clean key
+            return $str;
+        }
 
-        return $str;
+        // Failed - return false or exit
+        if ($fatal) {
+            throw new ExitException('Disallowed Key Characters.', Xylophone::EXIT_USER_INPUT, 503);
+        }
+        return false;
     }
 
     /**
@@ -626,13 +638,17 @@ class Input
         }
 
         // In Apache, you can simply call apache_request_headers()
-        if (function_exists('apache_request_headers')) {
+        if (function_exists('apache_request_headers') && !defined('TESTPATH')) {
+            // We don't need to test the apache function
+            // @codeCoverageIgnoreStart
             return $this->headers = apache_request_headers();
+            // @codeCoverageIgnoreEnd
         }
 
-        $this->headers['Content-Type'] = isset($_SERVER['CONTENT_TYPE']) ? $_SERVER['CONTENT_TYPE'] :
-            @getenv('CONTENT_TYPE');
+        // Get content type
+        $this->headers['Content-Type'] = isset($_SERVER['CONTENT_TYPE']) ? $_SERVER['CONTENT_TYPE'] : @getenv('CONTENT_TYPE');
 
+        // Get any headers from $_SERVER, cleaning if requested
         foreach ($_SERVER as $key => $val) {
             if (sscanf($key, 'HTTP_%s', $header) === 1) {
                 // take SOME_HEADER and turn it into Some-Header
@@ -657,10 +673,16 @@ class Input
     public function getRequestHeader($index, $xss_clean = false)
     {
         global $XY;
-        empty($this->headers) && $this->request_headers();
-        if (isset($this->headers[$index])) {
+
+        // Get headers if not already set
+        empty($this->headers) && $this->requestHeaders();
+
+        // Return NULL if header not set
+        if (!isset($this->headers[$index])) {
             return null;
         }
+
+        // Return the header, cleaning if requested
         return $xss_clean ? $XY->security->xssClean($this->headers[$index]) : $this->headers[$index];
     }
 
@@ -673,7 +695,8 @@ class Input
      */
     public function isAjaxRequest()
     {
-        return (!empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest');
+        return (!empty($_SERVER['HTTP_X_REQUESTED_WITH']) &&
+            strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest');
     }
 
     /**
