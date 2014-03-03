@@ -74,12 +74,21 @@ include_once TESTPATH.'XyTestCase.php';
 spl_autoload_register(function ($class) {
     // Break out namespace and class
     $parts = explode('\\', trim($class, '\\'));
-    if ($parts[0] == 'Xylophone') {
-        // Remove system namespace
-        array_shift($parts);
-
-        // Include reassembled namespace as path to source file
-        include_once BASEPATH.'system/'.implode('/', $parts).'.php';
+    switch ($parts[0]) {
+        case 'Xylophone':
+            $path = 'system/';
+            break;
+        case 'Mocks':
+            $path = 'tests/Mocks/';
+            break;
+        default:
+            return;
     }
+
+    // Remove top-level namespace
+    array_shift($parts);
+
+    // Include reassembled namespace as path to source file
+    include_once BASEPATH.$path.implode('/', $parts).'.php';
 });
 
