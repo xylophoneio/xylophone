@@ -615,14 +615,14 @@ class ConfigTest extends XyTestCase
         // Mock Config and set up calls
         $config = $this->getMock('Xylophone\core\Config', array('slashitem', 'item', 'uriString'),
             array(), '', false);
-        $config->expects($this->at(0))->method('slashItem')->with($this->equalTo('base_url'))->
-            will($this->returnValue($base));
-        $config->expects($this->at(1))->method('uriString')->with($this->equalTo($uri))->
+        $config->expects($this->exactly(2))->method('slashItem')->will($this->returnValueMap(array(
+            array('base_url', $base),
+            array('index_page', $index)
+        )));
+        $config->expects($this->once())->method('uriString')->with($this->equalTo($uri))->
             will($this->returnArgument(0));
-        $config->expects($this->at(2))->method('item')->with($this->equalTo('enable_query_strings'))->
+        $config->expects($this->once())->method('item')->with($this->equalTo('enable_query_strings'))->
             will($this->returnValue(false));
-        $config->expects($this->at(3))->method('slashItem')->with($this->equalTo('index_page'))->
-            will($this->returnValue($index));
         $config->config['url_suffix'] = $suffix;
 
         // Call siteUrl() and verify result
@@ -645,14 +645,14 @@ class ConfigTest extends XyTestCase
         // Mock Config and set up calls
         $config = $this->getMock('Xylophone\core\Config', array('slashitem', 'item', 'uriString'),
             array(), '', false);
-        $config->expects($this->at(0))->method('slashItem')->with($this->equalTo('base_url'))->
-            will($this->returnValue($base));
-        $config->expects($this->at(1))->method('uriString')->with($this->equalTo($uri))->
+        $config->expects($this->exactly(2))->method('slashItem')->will($this->returnValueMap(array(
+            array('base_url', $base),
+            array('index_page', $index)
+        )));
+        $config->expects($this->once())->method('uriString')->with($this->equalTo($uri))->
             will($this->returnArgument(0));
-        $config->expects($this->at(2))->method('item')->with($this->equalTo('enable_query_strings'))->
+        $config->expects($this->once())->method('item')->with($this->equalTo('enable_query_strings'))->
             will($this->returnValue(false));
-        $config->expects($this->at(3))->method('slashItem')->with($this->equalTo('index_page'))->
-            will($this->returnValue($index));
         $config->config['url_suffix'] = $suffix;
 
         // Call siteUrl() and verify result
@@ -674,14 +674,14 @@ class ConfigTest extends XyTestCase
         // Mock Config and set up calls
         $config = $this->getMock('Xylophone\core\Config', array('slashitem', 'item', 'uriString'),
             array(), '', false);
-        $config->expects($this->at(0))->method('slashItem')->with($this->equalTo('base_url'))->
+        $config->expects($this->once())->method('slashItem')->with($this->equalTo('base_url'))->
             will($this->returnValue($proto1.$base));
-        $config->expects($this->at(1))->method('uriString')->with($this->equalTo($uri))->
+        $config->expects($this->once())->method('uriString')->with($this->equalTo($uri))->
             will($this->returnArgument(0));
-        $config->expects($this->at(2))->method('item')->with($this->equalTo('enable_query_strings'))->
-            will($this->returnValue(true));
-        $config->expects($this->at(3))->method('item')->with($this->equalTo('index_page'))->
-            will($this->returnValue($index));
+        $config->expects($this->exactly(2))->method('item')->will($this->returnValueMap(array(
+            array('enable_query_strings', '', true),
+            array('index_page', '', $index)
+        )));
 
         // Call siteUrl() and verify result
         $this->assertEquals($proto2.$base.$index.$uri, $config->siteUrl($uri, $proto2));

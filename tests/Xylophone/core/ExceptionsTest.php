@@ -180,10 +180,11 @@ class ExceptionsTest extends XyTestCase
         $XY->config = array('docs_url' => $docs);
         $XY->app_path = $app_path;
         $XY->system_path = $sys_path;
-        $XY->lang->expects($this->at(0))->method('load')->with($this->equalTo('db'));
-        $XY->lang->expects($this->at(1))->method('line')->with($this->equalTo('db_error_heading'))->
-            will($this->returnValue($heading));
-        $XY->lang->expects($this->at(2))->method('line')->with($this->equalTo($index))->will($this->returnValue($line));
+        $XY->lang->expects($this->once())->method('load')->with($this->equalTo('db'));
+        $XY->lang->expects($this->exactly(2))->method('line')->will($this->returnValueMap(array(
+            array('db_error_heading', true, $heading),
+            array($index, true, $line)
+        )));
         $exceptions->expects($this->once())->method('getTrace')->will($this->returnValue($trace));
         $exceptions->expects($this->once())->method('formatError')->with($this->equalTo($heading),
             $this->equalTo($message), $this->equalTo('error_db'), $this->equalTo($args))->

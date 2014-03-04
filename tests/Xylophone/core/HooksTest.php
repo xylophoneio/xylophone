@@ -187,8 +187,10 @@ class HooksTest extends XyTestCase
         $hooks = $this->getMock('Xylophone\core\Hooks', null, array(), '', false);
 
         // Set up calls and hooks
-        $XY->load->expects($this->at(0))->method('controller')->with($this->equalTo($hook1));
-        $XY->load->expects($this->at(1))->method('controller')->with($this->equalTo($hook2));
+        $XY->load->expects($this->exactly(2))->method('controller')->will($this->returnValueMap(array(
+            array($hook1, null),
+            array($hook2, null)
+        )));
         $hooks->enabled = true;
         $hooks->hooks[$name] = array($hook1, $hook2);
 

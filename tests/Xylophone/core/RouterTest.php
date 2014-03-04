@@ -60,16 +60,15 @@ class RouterTest extends XyTestCase
         $_GET[$func_trig] = $func_arg;
 
         // Set up calls
-        $XY->config->expects($this->at(0))->method('get')->with($this->equalTo('routes.php'), $this->equalTo('route'))->
+        $XY->config->expects($this->once())->method('get')->
+            with($this->equalTo('routes.php'), $this->equalTo('route'))->
             will($this->returnValue(false));
-        $XY->config->expects($this->at(1))->method('offsetGet')->with($this->equalTo('controller_trigger'))->
-            will($this->returnValue($ctlr_trig));
-        $XY->config->expects($this->at(2))->method('offsetGet')->with($this->equalTo('enable_query_strings'))->
-            will($this->returnValue(true));
-        $XY->config->expects($this->at(3))->method('offsetGet')->with($this->equalTo('directory_trigger'))->
-            will($this->returnValue($dir_trig));
-        $XY->config->expects($this->at(4))->method('offsetGet')->with($this->equalTo('function_trigger'))->
-            will($this->returnValue($func_trig));
+        $XY->config->expects($this->exactly(4))->method('offsetGet')->will($this->returnValueMap(array(
+            array('controller_trigger', $ctlr_trig),
+            array('enable_query_strings', true),
+            array('directory_trigger', $dir_trig),
+            array('function_trigger', $func_trig)
+        )));
         $XY->uri->expects($this->exactly(3))->method('filterUri')->will($this->returnArgument(0));
         $XY->logger->expects($this->once())->method('debug');
         $router->expects($this->once())->method('validateRoute')->with($this->equalTo($route))->
@@ -105,16 +104,15 @@ class RouterTest extends XyTestCase
         $_GET[$func_trig] = $func_arg;
 
         // Set up calls
-        $XY->config->expects($this->at(0))->method('get')->with($this->equalTo('routes.php'), $this->equalTo('route'))->
+        $XY->config->expects($this->once())->method('get')->
+            with($this->equalTo('routes.php'), $this->equalTo('route'))->
             will($this->returnValue(false));
-        $XY->config->expects($this->at(1))->method('offsetGet')->with($this->equalTo('controller_trigger'))->
-            will($this->returnValue($ctlr_trig));
-        $XY->config->expects($this->at(2))->method('offsetGet')->with($this->equalTo('enable_query_strings'))->
-            will($this->returnValue(true));
-        $XY->config->expects($this->at(3))->method('offsetGet')->with($this->equalTo('directory_trigger'))->
-            will($this->returnValue(null));
-        $XY->config->expects($this->at(4))->method('offsetGet')->with($this->equalTo('function_trigger'))->
-            will($this->returnValue($func_trig));
+        $XY->config->expects($this->exactly(4))->method('offsetGet')->will($this->returnValueMap(array(
+            array('controller_trigger', $ctlr_trig),
+            array('enable_query_strings', true),
+            array('directory_trigger', null),
+            array('function_trigger', $func_trig)
+        )));
         $XY->uri->expects($this->exactly(2))->method('filterUri')->will($this->returnArgument(0));
         $router->expects($this->once())->method('validateRoute')->with($this->equalTo($route))->
             will($this->returnValue(false));
@@ -145,12 +143,13 @@ class RouterTest extends XyTestCase
         $XY->uri->segments = $route;
 
         // Set up calls
-        $XY->config->expects($this->at(0))->method('get')->with($this->equalTo('routes.php'), $this->equalTo('route'))->
+        $XY->config->expects($this->once())->method('get')->
+            with($this->equalTo('routes.php'), $this->equalTo('route'))->
             will($this->returnValue(false));
-        $XY->config->expects($this->at(1))->method('offsetGet')->with($this->equalTo('controller_trigger'))->
-            will($this->returnValue('c'));
-        $XY->config->expects($this->at(2))->method('offsetGet')->with($this->equalTo('enable_query_strings'))->
-            will($this->returnValue(false));
+        $XY->config->expects($this->exactly(2))->method('offsetGet')->will($this->returnValueMap(array(
+            array('controller_trigger', 'c'),
+            array('enable_query_strings', false)
+        )));
         $XY->uri->expects($this->once())->method('load');
         $router->expects($this->once())->method('parseRoutes')->with($this->equalTo($route))->
             will($this->returnArgument(0));
@@ -189,12 +188,13 @@ class RouterTest extends XyTestCase
         $XY->uri->segments = $route;
 
         // Set up calls
-        $XY->config->expects($this->at(0))->method('get')->with($this->equalTo('routes.php'), $this->equalTo('route'))->
+        $XY->config->expects($this->once())->method('get')->
+            with($this->equalTo('routes.php'), $this->equalTo('route'))->
             will($this->returnValue($routes));
-        $XY->config->expects($this->at(1))->method('offsetGet')->with($this->equalTo('controller_trigger'))->
-            will($this->returnValue('c'));
-        $XY->config->expects($this->at(2))->method('offsetGet')->with($this->equalTo('enable_query_strings'))->
-            will($this->returnValue(false));
+        $XY->config->expects($this->exactly(2))->method('offsetGet')->will($this->returnValueMap(array(
+            array('controller_trigger', 'c'),
+            array('enable_query_strings', false)
+        )));
         $XY->uri->expects($this->once())->method('load');
         $XY->uri->expects($this->once())->method('setRuriString')->with($this->equalTo($route));
         $XY->logger->expects($this->once())->method('debug');

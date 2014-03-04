@@ -513,10 +513,10 @@ class XylophoneTest extends XyTestCase
 
         // Mock Xylophone and Output and set up calls
         $XY = $this->getMock('Xylophone\core\Xylophone', array('isCallable'), array(), '', false);
-        $XY->expects($this->at(0))->method('isCallable')->with($this->equalTo($class), $this->equalTo('xyRemap'))->
-            will($this->returnValue(false));
-        $XY->expects($this->at(1))->method('isCallable')->with($this->equalTo($class), $this->equalTo($method))->
-            will($this->returnValue(true));
+        $XY->expects($this->exactly(2))->method('isCallable')-> will($this->returnValueMap(array(
+            array($class, 'xyRemap', false),
+            array($class, $method, true)
+        )));
         $XY->output = $this->getMock('Xylophone\core\Output', array('stackPush', 'stackPop'), array(), '', false);
         $XY->output->expects($this->once())->method('stackPush');
         $XY->output->expects($this->once())->method('stackPop')->will($this->returnValue($output));
@@ -609,14 +609,11 @@ class XylophoneTest extends XyTestCase
         $out = (object)array('name' => 'Output');
 
         // Set up Xylophone calls
-        // The at() indexes represent the sequenced calls to Xylophone methods
-        // In order to verify the various parameters, we have to specify the sequence
-        $XY->expects($this->at(0))->method('loadClass')->with($this->equalTo('Config'), $this->equalTo('core'))->
-            will($this->returnValue($cfg));
-        $XY->expects($this->at(1))->method('loadClass')->with($this->equalTo('Logger'), $this->equalTo('core'))->
-            will($this->returnValue($lgr));
-        $XY->expects($this->at(2))->method('loadClass')->with($this->equalTo('Output'), $this->equalTo('core'))->
-            will($this->returnValue($out));
+        $XY->expects($this->exactly(3))->method('loadClass')->will($this->returnValueMap(array(
+            array('Config', 'core', null, null, $cfg),
+            array('Logger', 'core', null, null, $lgr),
+            array('Output', 'core', null, null, $out)
+        )));
         $XY->expects($this->once())->method('addNamespace')->with($this->equalTo($autons));
         $XY->expects($this->once())->method('addViewPath')->with($this->equalTo($autovp));
         $XY->expects($this->once())->method('playBridge');
@@ -625,16 +622,16 @@ class XylophoneTest extends XyTestCase
         $XY->expects($this->once())->method('playVerse');
 
         // Set up Config calls
-        // The at() indexes represent the sequenced calls to Config methods
-        // In order to verify the various parameters, we have to specify the sequence
-        $cfg->expects($this->at(0))->method('setItem')->with($this->equalTo($config));
-        $cfg->expects($this->at(1))->method('get')->with($this->equalTo('constants.php'), $this->isFalse());
-        $cfg->expects($this->at(2))->method('get')->with($this->equalTo('autoload.php'), $this->equalTo('autoload'))->
-            will($this->returnValue($autoload));
-        $cfg->expects($this->at(3))->method('load')->with($this->equalTo($autocfg));
-        $cfg->expects($this->at(4))->method('get')->with($this->equalTo('mimes.php'), $this->equalTo('mimes'))->
-            will($this->returnValue($mimes));
-        $cfg->expects($this->at(5))->method('setItem')->with($this->equalTo('mimes'), $this->equalTo($mimes));
+        $cfg->expects($this->exactly(2))->method('setItem')->will($this->returnValueMap(array(
+            array($config, '', null),
+            array('mimes', $mimes, null)
+        )));
+        $cfg->expects($this->exactly(3))->method('get')->will($this->returnValueMap(array(
+            array('constants.php', false, null),
+            array('autoload.php', 'autoload', $autoload),
+            array('mimes.php', 'mimes', $mimes)
+        )));
+        $cfg->expects($this->once())->method('load')->with($this->equalTo($autocfg));
 
         // Call play() and confirm autoload return and loaded objects
         $XY->play($benchmark, $config);
@@ -664,16 +661,13 @@ class XylophoneTest extends XyTestCase
         $cfg = $this->getMock('Xylophone\core\Config', array('get'), array(), '', false);
 
         // Set up Xylophone calls
-        // The at() indexes represent the sequenced calls to Xylophone methods
-        // In order to verify the various parameters, we have to specify the sequence
-        $XY->expects($this->at(0))->method('loadClass')->with($this->equalTo('Benchmark'), $this->equalTo('core'))->
-            will($this->returnValue($bmk));
-        $XY->expects($this->at(1))->method('loadClass')->with($this->equalTo('Config'), $this->equalTo('core'))->
-            will($this->returnValue($cfg));
-        $XY->expects($this->at(2))->method('loadClass')->with($this->equalTo('Logger'), $this->equalTo('core'))->
-            will($this->returnValue($obj));
-        $XY->expects($this->at(3))->method('loadClass')->with($this->equalTo('Output'), $this->equalTo('core'))->
-            will($this->returnValue($obj));
+        $XY->expects($this->exactly(4))->method('loadClass')->will($this->returnValueMap(array(
+            array('Benchmark', 'core', null, null, $bmk),
+            array('Config', 'core', null, null, $cfg),
+            array('Logger', 'core', null, null, $obj),
+            array('Output', 'core', null, null, $obj)
+        )));
+
         $XY->expects($this->once())->method('playCoda')->will($this->returnValue(true));
 
         // Call play() and verify markers
@@ -705,17 +699,14 @@ class XylophoneTest extends XyTestCase
         $rtr = $this->getMock('Xylophone\core\Router', null, array(), '', false);
 
         // Set up calls
-        $XY->expects($this->at(0))->method('playIntro');
-        $XY->expects($this->at(1))->method('loadClass')->with($this->equalTo('Loader'), $this->equalTo('core'))->
-            will($this->returnValue($ldr));
-        $XY->expects($this->at(2))->method('loadClass')->with($this->equalTo('Hooks'), $this->equalTo('core'))->
-            will($this->returnValue($hks));
-        $XY->expects($this->at(3))->method('loadClass')->with($this->equalTo('Utf8'), $this->equalTo('core'))->
-            will($this->returnValue($utf));
-        $XY->expects($this->at(4))->method('loadClass')->with($this->equalTo('URI'), $this->equalTo('core'))->
-            will($this->returnValue($uri));
-        $XY->expects($this->at(5))->method('loadClass')->with($this->equalTo('Router'), $this->equalTo('core'))->
-            will($this->returnValue($rtr));
+        $XY->expects($this->once())->method('playIntro');
+        $XY->expects($this->exactly(5))->method('loadClass')->will($this->returnValueMap(array(
+            array('Loader', 'core', null, null, $ldr),
+            array('Hooks', 'core', null, null, $hks),
+            array('Utf8', 'core', null, null, $utf),
+            array('URI', 'core', null, null, $uri),
+            array('Router', 'core', null, null, $rtr)
+        )));
         $XY->expects($this->once())->method('playCoda')->will($this->returnValue(true));
         $hks->expects($this->once())->method('callHook')->with($this->equalTo('pre_system'));
 
@@ -824,15 +815,14 @@ class XylophoneTest extends XyTestCase
         $XY->load = $this->getMock('Xylophone\core\Loader', array('driver', 'library', 'model'), array(), '', false);
 
         // Set up calls
-        $XY->expects($this->at(0))->method('playIntro')->will($this->returnValue($autoload));
-        $XY->expects($this->at(1))->method('playBridge');
-        $XY->expects($this->at(2))->method('playCoda')->will($this->returnValue(false));
-        $XY->expects($this->at(3))->method('loadClass')->with($this->equalTo('Security'), $this->equalTo('core'))->
-            will($this->returnValue($sec));
-        $XY->expects($this->at(4))->method('loadClass')->with($this->equalTo('Input'), $this->equalTo('core'))->
-            will($this->returnValue($inp));
-        $XY->expects($this->at(5))->method('loadClass')->with($this->equalTo('Lang'), $this->equalTo('core'))->
-            will($this->returnValue($lng));
+        $XY->expects($this->once())->method('playIntro')->will($this->returnValue($autoload));
+        $XY->expects($this->once())->method('playBridge');
+        $XY->expects($this->once())->method('playCoda')->will($this->returnValue(false));
+        $XY->expects($this->exactly(3))->method('loadClass')->will($this->returnValueMap(array(
+            array('Security', 'core', null, null, $sec),
+            array('Input', 'core', null, null, $inp),
+            array('Lang', 'core', null, null, $lng)
+        )));
         $lng->expects($this->once())->method('load')->with($this->equalTo($autoload['language']));
         $XY->load->expects($this->once())->method('driver')->with($this->equalTo($autoload['drivers']));
         $XY->load->expects($this->once())->method('library')->with($this->equalTo($autoload['libraries']));
@@ -889,12 +879,13 @@ class XylophoneTest extends XyTestCase
         // Set up calls
         $XY->expects($this->once())->method('playCoda')->will($this->returnValue(false));
         $XY->expects($this->once())->method('callController')->will($this->returnValue(true));
-        $XY->hooks->expects($this->at(0))->method('callHook')->with($this->equalTo('pre_controller'));
-        $XY->hooks->expects($this->at(1))->method('callHook')->with($this->equalTo('post_controller_constructor'));
-        $XY->hooks->expects($this->at(2))->method('callHook')->with($this->equalTo('post_controller'));
-        $XY->hooks->expects($this->at(3))->method('callHook')->with($this->equalTo('display_override'))->
-            will($this->returnValue(true));
-        $XY->hooks->expects($this->at(4))->method('callHook')->with($this->equalTo('post_system'));
+        $XY->hooks->expects($this->exactly(5))->method('callHook')->will($this->returnValueMap(array(
+            array('pre_controller', null),
+            array('post_controller_constructor', null),
+            array('post_controller', null),
+            array('display_override', true),
+            array('post_system', null)
+        )));
         $XY->load->expects($this->once())->method('controller')->
             with($this->equalTo($route), $this->equalTo($name), $this->isFalse())->
             will($this->returnValue(true));
@@ -934,8 +925,10 @@ class XylophoneTest extends XyTestCase
         $XY->expects($this->once())->method('playCoda')->will($this->returnValue(false));
         $XY->expects($this->once())->method('callController')->will($this->returnValue(false));
         $XY->expects($this->exactly(2))->method('show404')->with($this->equalTo($clsmth));
-        $XY->benchmark->expects($this->at(0))->method('mark')->with($this->equalTo('controller_execution_time_start'));
-        $XY->benchmark->expects($this->at(1))->method('mark')->with($this->equalTo('controller_execution_time_end'));
+        $XY->benchmark->expects($this->exactly(2))->method('mark')->will($this->returnValueMap(array(
+            array('controller_execution_time_start', null),
+            array('controller_execution_time_end', null)
+        )));
         $XY->hooks->expects($this->exactly(5))->method('callHook')->will($this->returnValue(false));
         $XY->load->expects($this->once())->method('controller')->will($this->returnValue(false));
         $XY->output->expects($this->once())->method('display');
