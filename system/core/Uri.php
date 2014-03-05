@@ -54,10 +54,10 @@ class Uri
     public $rsegments = array();
 
     /** @var    string  Permitted URI characters */
-    protected $perm_char = '';
+    public $perm_char = '';
 
     /** @var    bool    Whether query strings are enabled */
-    protected $query_str = false;
+    public $query_str = false;
 
     /**
      * Constructor
@@ -275,7 +275,7 @@ class Uri
 
         // Ensure that where the URI is required to be in the query string (Nginx)
         // a correct URI is found, and fix the QUERY_STRING var and $_GET array.
-        if (trim($uri, '/') === '' && strncmp($query, '/', 1) === 0) {
+        if (trim($uri, '/') === '' && $query[0] == '/') {
             $query = explode('?', $query, 2);
             $uri = rawurldecode($query[0]);
             $_SERVER['QUERY_STRING'] = isset($query[1]) ? $query[1] : '';
@@ -305,15 +305,17 @@ class Uri
      */
     protected function parseQueryString()
     {
+        // Get query string, which may be empty or FALSE
         $uri = isset($_SERVER['QUERY_STRING']) ? $_SERVER['QUERY_STRING'] : @getenv('QUERY_STRING');
-        if (trim($uri, '/') === '') {
+        if (trim($uri, '/') == '') {
             return '';
         }
 
-        if (strncmp($uri, '/', 1) === 0) {
-            $uri = explode('?', $uri, 2);
-            $_SERVER['QUERY_STRING'] = isset($uri[1]) ? $uri[1] : '';
-            $uri = rawurldecode($uri[0]);
+        // Break out path from query args where combined (Nginx)
+        if ($uri[0] == '/') {
+            $query = explode('?', $uri, 2);
+            $uri = rawurldecode($query[0]);
+            $_SERVER['QUERY_STRING'] = isset($query[1]) ? $query[1] : '';
         }
 
         parse_str($_SERVER['QUERY_STRING'], $_GET);
@@ -346,13 +348,10 @@ class Uri
      */
     protected function removeRelativeDirectory($uri)
     {
+        // Remove empty and '..' segments
         $uris = array();
-        $tok = strtok($uri, '/');
-        while ($tok !== false) {
-            if ((!empty($tok) || $tok === '0') && $tok !== '..') {
-                $uris[] = $tok;
-            }
-            $tok = strtok('/');
+        foreach (explode('/', $uri) as $seg) {
+            $seg != '' && $seg != '..' && $uris[] = $seg;
         }
         return implode('/', $uris);
     }
@@ -430,18 +429,18 @@ class Uri
      * @used-by URI::uriToAssoc()
      * @used-by URI::ruriToAssoc()
      *
-     * @param   int     $start      Starting segment index (default: 3)
+     * @param   int     $start      Starting segment index
      * @param   array   $default    Default values
      * @param   array   $segments   Reference to segment array
      * @return  array   Associative array of segments
      */
-    protected function toAssoc($start = 3, $default = array(), &$segments)
+    protected function toAssoc($start, $default, &$segments)
     {
         // Index must be numeric and within segment count
         if (!is_numeric($start)) {
             return $default;
         }
-        if ($start >= $count($segments)) {
+        if ($start >= count($segments)) {
             return count($default) ? array_fill_keys($default, null) : array();
         }
 
@@ -533,8 +532,14 @@ class Uri
      * @param   array   $segments   Reference to segment array
      * @return  string  Segment with slash
      */
-    protected function addSlash($n, $where = 'trailing', &$segments)
+    protected function addSlash($n, $where, &$segments)
     {
+        // Make sure segment exists
+        if (!isset($segments[$n])) {
+            return null;
+        }
+
+        // Return segment with leading and/or trailing slash
         $leading = ($where === 'trailing') ? '' : '/';
         $trailing = ($where === 'leading') ? '' : '/';
         return $leading.$segments[$n].$trailing;
