@@ -58,20 +58,20 @@ class Security
         '%3d'       // =
     );
 
-    /** @var    string  Random Hash for protecting URLs  */
+    /** @var    int     Cross Site Request Forgery cookie expiration - default two hours (in seconds) */
+    public $csrf_expire = 7200;
+
+    /** @var    string  Cross Site Request Forgery cookie token name */
+    public $csrf_token_name = 'ci_csrf_token';
+
+    /** @var    string  Cross Site Request Forgery cookie cookie name */
+    public $csrf_cookie_name = 'ci_csrf_token';
+
+    /** @var    string  Random Hash for protecting URLs */
     protected $xss_hash = '';
 
     /** @var    string  Random hash for Cross Site Request Forgery protection cookie */
     protected $csrf_hash = '';
-
-    /** @var    int     Cross Site Request Forgery cookie expiration - default two hours (in seconds) */
-    protected $csrf_expire = 7200;
-
-    /** @var    string  Cross Site Request Forgery cookie token name */
-    protected $csrf_token_name = 'ci_csrf_token';
-
-    /** @var    string  Cross Site Request Forgery cookie cookie name */
-    protected $csrf_cookie_name = 'ci_csrf_token';
 
     /** @var    array   List of never allowed strings */
     protected $never_allowed_str = array(
@@ -90,10 +90,10 @@ class Security
     /** @var    array   List of never allowed regex replacements */
     protected $never_allowed_regex = array(
         'javascript\s*:',
-        'expression\s*(\(|&\#40;)', // CSS and IE
+        'expression\s*(\(|&#40;)',  // CSS and IE
         'vbscript\s*:',             // IE, surprise!
         'Redirect\s+302',
-        '(["\'])?data\s*:[^\1]*?base64[^\1]*?,[^\1]*?\1?'
+        '([\'"])?data\s*:(?(?!\\1).)*?base64(?(?!\\1).)*?,(?(?!\\1).)*?\\1'
     );
 
     /**
@@ -106,12 +106,11 @@ class Security
         global $XY;
 
         // Is CSRF protection enabled?
-        if ($XY->config['csrf_protection'] === true) {
+        if ($XY->config['csrf_protection']) {
             // CSRF config
             foreach (array('csrf_expire', 'csrf_token_name', 'csrf_cookie_name') as $key) {
-                if (($val = config_item($key)) !== false) {
-                    $this->$key = $val;
-                }
+                $val = $XY->config[$key];
+                $val === null || $this->$key = $val;
             }
 
             // Append application specific cookie prefix
@@ -168,7 +167,6 @@ class Security
     /**
      * CSRF Set Cookie
      *
-     * @codeCoverageIgnore
      * @return  object  $this
      */
     public function csrfSetCookie()
@@ -181,11 +179,33 @@ class Security
             return false;
         }
 
-        setcookie($this->csrf_cookie_name, $this->csrf_hash, $expire, $XY->config['cookie_path'],
+        $this->xySetCookie($this->csrf_cookie_name, $this->csrf_hash, $expire, $XY->config['cookie_path'],
             $XY->config['cookie_domain'], $secure_cookie, $XY->config['cookie_httponly']);
 
-        $XY->logger->debug('CRSF cookie Set');
+        $XY->logger->debug('CRSF cookie set');
         return $this;
+    }
+
+    /**
+     * Internal Set cookie
+     *
+     * This abstraction of the setcookie call allows overriding for unit testing
+     *
+     * @codeCoverageIgnore
+     *
+     * @param   string  $name       Cookie name or an array containing parameters
+     * @param   string  $value      Cookie value
+     * @param   int     $expire     Cookie expiration time in seconds
+     * @param   string  $path       Cookie path (default: '/')
+     * @param   string  $domain     Cookie domain (e.g.: '.yourdomain.com')
+     * @param   bool    $secure     Whether to only transfer cookies via SSL
+     * @param   bool    $httponly   Whether to only makes the cookie accessible via HTTP (no javascript)
+     * @return  void
+     */
+    protected function xySetCookie($name, $value, $expire, $path, $domain, $secure, $httponly)
+    {
+        // By default, just call setcookie()
+        setcookie($name, $value, $expire, $path, $domain, $secure, $httponly);
     }
 
     /**
@@ -251,11 +271,7 @@ class Security
 
         // Is the string an array?
         if (is_array($str)) {
-            while (list($key) = each($str)) {
-                $str[$key] = $this->xssClean($str[$key]);
-            }
-
-            return $str;
+            return array_map(array($this, 'xssClean'), $str);
         }
 
         // Remove Invisible Characters and validate entities in URLs
@@ -268,8 +284,9 @@ class Security
 
         // Convert character entities within tags to ASCII so our tests work
         // reliably. These are the ones that will pose security problems.
-        $str = preg_replace_callback("/[a-z]+=([\'\"]).*?\\1/si", array($this, '_convert_attribute'), $str);
-        $str = preg_replace_callback('/<\w+.*/si', array($this, '_decode_entity'), $str);
+        $str = preg_replace_callback('/[-\w]+\s*=\s*([\'"]|)(?(?!\\1).|[^<>\s\'"])*\\1/si',
+            array($this, 'convertAttribute'), $str);
+        $str = preg_replace_callback('/<\w+.*/si', array($this, 'decodeEntity'), $str);
 
         // Remove Invisible Characters Again!
         $str = $XY->output->removeInvisibleCharacters($str);
@@ -281,7 +298,7 @@ class Security
         // Capture converted string for later comparison
         $converted_string = $str;
 
-        // Remove Strings that are never allowed
+        // Remove strings that are never allowed
         $str = $this->doNeverAllowed($str);
 
         // Make PHP tags safe, which will also convert XML tags
@@ -300,18 +317,22 @@ class Security
             'applet', 'alert', 'document', 'write', 'cookie', 'window');
         $call = array($this, 'compactExplodedWords');
         foreach ($words as $word) {
-            $word = implode('\s*', str_split($word)).'\s*';
-            $str = preg_replace_callback('/('.substr($word, 0, -3).')(\W)/is', $call, $str);
+            $word = implode('\s*', str_split($word));
+            $str = preg_replace_callback('/('.$word.')(\W)/is', $call, $str);
         }
 
         // Remove disallowed Javascript in links or img tags
-        $link_call = array($this, '_js_link_removal');
-        $img_call = array($this, '_js_img_removal');
+        // Pre-assemble calls and glue regexes so '?' and '>' don't cause script troubles
+        $link_call = array($this, 'jsLinkRemoval');
+        $img_call = array($this, 'jsImgRemoval');
+        $link_reg = '/<a(\s+[^>]*?)(?:>|$)/si';
+        $img_reg = '/<img(\s+[^>]*?)(?:\s?\/?'.'>|$)/si';
+        $xss_reg = '/<\/*(?:script|xss).*?'.'>/si';
         do {
             $original = $str;
-            preg_match('/<a/i', $str) && $str = preg_replace_callback('/<a\s+([^>]*?)(?:>|$)/si', $link_call, $str);
-            preg_match('/<img/i', $str) && $str = preg_replace_callback('/<img\s+([^>]*?)(?:\s?\/?>|$)/si', $img_call, $str);
-            preg_match('/script|xss/i', $str) && $str = preg_replace('/<\/*(?:script|xss).*?>/si', '[removed]', $str);
+            preg_match('/<a/i', $str) && $str = preg_replace_callback($link_reg, $link_call, $str);
+            preg_match('/<img/i', $str) && $str = preg_replace_callback($img_reg, $img_call, $str);
+            preg_match('/script|xss/i', $str) && $str = preg_replace($xss_reg, '[removed]', $str);
         } while ($original !== $str);
         unset($original);
 
@@ -326,8 +347,7 @@ class Security
 
         // Sanitize naughty scripting elements by converting parentheses to entities
         // So eval('some code'); becomes: eval&#40;'some code'&#41;
-        $str = preg_replace('/(alert|cmd|passthru|eval|exec|expression|system|fopen|fsockopen|file|file_get_contents|readfile|unlink)(\s*)\((.*?)\)/si',
-            '\\1\\2&#40;\\3&#41;', $str);
+        $str = preg_replace('/(alert|cmd|passthru|eval|exec|expression|system|fopen|fsockopen|file|file_get_contents|readfile|unlink)(\s*)\((.*?)\)/si', '\\1\\2&#40;\\3&#41;', $str);
 
         // Final clean up in case something got through the above filters
         $str = $this->doNeverAllowed($str);
@@ -380,7 +400,7 @@ class Security
             return $str;
         }
 
-        empty($charset) && $charset = $XY->config['charset'];
+        empty($charset) && $charset = strtoupper($XY->config['charset']);
 
         do {
             $matches = $matches1 = 0;
@@ -428,7 +448,7 @@ class Security
      */
     public function stripImageTags($str)
     {
-        return preg_replace(array('/<img[\s\/]+.*?src\s*=\s*["\'](.+?)["\'].*?\>#', '#<img[\s\/]+.*?src\s*=\s*(.+?).*?\>/'), '\\1', $str);
+        return preg_replace(array('/<img[\s\/]+.*?src\s*=\s*["\'](.+?)["\'].*?\>/', '/<img[\s\/]+.*?src\s*=\s*(.+?).*?\>/'), '\\1', $str);
     }
 
     /**
@@ -450,18 +470,18 @@ class Security
     /**
      * Remove Evil HTML Attributes (like event handlers and style)
      *
-     * It removes the evil attribute and either:
+     * It removes the evil attribute(s) and either:
      *
      *  - Everything up until a space. For example, everything between the pipes:
      *
      *  <code>
-     *      <a |style=document.write('hello');alert('world');| class=link>
+     *      <a| style=document.write('hello');alert('world');| class=link>
      *  </code>
      *
      *  - Everything inside the quotes. For example, everything between the pipes:
      *
      *  <code>
-     *      <a |style="document.write('hello'); alert('world');"| class="link">
+     *      <a| style="document.write('hello'); alert('world');"| class="link">
      *  </code>
      *
      * @used-by Security::xssClean()
@@ -472,35 +492,57 @@ class Security
      */
     protected function removeEvilAttributes($str, $is_image)
     {
-        // All javascript event handlers (e.g. onload, onclick, onmouseover), style, and xmlns
-        $evil = array('on\w*', 'style', 'formaction');
+        // Our regex will find the first evil attribute inside each tag and remove it.
+        // It is complicated, but runs a minimal number of times per string, and once
+        // each flavor (image/non-image) is run once, the compiled form is cached by PHP.
+        //
+        // Here is the breakdown:
+        // (<\/?[^<>\'"]+?)
+        //      Capture tag open, name, and any non-evil attribute name before quotes (ungreedy)
+        // ((?:
+        //      Start second capture, containing any repetitions of the following sequence:
+        //      ([\'"])
+        //          Single or double quote (referenceable)
+        //      (?(?!\\3).)*
+        //          Any number of non-opening-quote chars
+        //      \\3
+        //          Close quote (matched)
+        //      (?:[^<>\'"]*?)
+        //          Any non-closing, unquoted chars - such as the next non-evil attribute name (ungreedy)
+        // )*)
+        //      End second capture
+        // (?:
+        //      Start final subpattern (where the evil lives), containing:
+        //      [^-\w\'"<>]
+        //          Preceding char (usually a space) which defines the beginning of the evil attribute name
+        //      (?:on\w+|style|formaction'.($is_image ? '' : '|xmlns').')
+        //          Any event handler, style, formaction, or xmlns (if not image) attribute name
+        //          We only remove xmlns if not an image because Adobe Photoshop puts XML metadata into JFIF images
+        //      \s*=\s*
+        //          Optionally padded equal sign
+        //      ([\'"]|)
+        //          A referenceable, optional, opening quote
+        //      (?(?!\\4)
+        //          Start value conditional on opening quote match:
+        //          .           Any (non-opening-quote) char
+        //          |           OR
+        //          [^<>\s\'"]  Any non-closing, non-space, unquoted char
+        //      )*
+        //          End value conditional (repeated any times)
+        //      \\4
+        //          Matched closing quote (if quoted)
+        // )
+        //      End final subpattern
+        $reg = '/(<\/?[^<>\'"]+?)((?:([\'"])(?(?!\\3).)*\\3(?:[^<>\'"]*?))*)(?:[^-\w\'"<>](?:on\w+|style|formaction'.
+            ($is_image ? '' : '|xmlns').')\s*=\s*([\'"]|)(?(?!\\4).|[^<>\s\'"])*\\4)/is';
 
-        // Only remove xmlns if not an image, since Adobe Photoshop puts XML metadata into JFIF images
-        $is_image || $evil[] = 'xmlns';
-
-        $evil = implode('|', $evil_attributes);
+        // Run the regex until the string is clean.
+        // This should run a maximum of 5 times, and only that many in the case
+        // where any single tag has ALL of the evil attributes.
+        // The final run is the clean confirmation.
         do {
             $count = 0;
-            $attribs = array();
-
-            // Find occurrences of illegal attribute strings with quotes (042 and 047 are octal quotes)
-            preg_match_all('/('.$evil.')\s*=\s*(\042|\047)([^\\2]*?)(\\2)/is', $str, $matches, PREG_SET_ORDER);
-
-            foreach ($matches as $attr) {
-                $attribs[] = preg_quote($attr[0], '/');
-            }
-
-            // Find occurrences of illegal attribute strings without quotes
-            preg_match_all('/('.$evil.')\s*=\s*([^\s>]*)/is', $str, $matches, PREG_SET_ORDER);
-
-            foreach ($matches as $attr) {
-                $attribs[] = preg_quote($attr[0], '/');
-            }
-
-            // Replace illegal attribute strings that are inside an html tag
-            if (count($attribs) > 0) {
-                $str = preg_replace('/(<?)(\/?[^><]+?)([^A-Za-z<>\-])(.*?)('.implode('|', $attribs).')(.*?)([\s><]?)([><]*)/i', '$1$2 $4$6$7$8', $str, -1, $count);
-            }
+            $str = preg_replace($reg, '$1$2', $str, -1, $count);
         } while ($count);
 
         return $str;
@@ -530,17 +572,19 @@ class Security
      *
      * This limits the PCRE backtracks, making it more performance friendly
      * and prevents PREG_BACKTRACK_LIMIT_ERROR from being triggered in
-     * PHP 5.2+ on link-heavy strings.
+     * PHP 5.3+ on link-heavy strings.
      *
      * @used-by Security::xssClean()
      *
-     * @param   array   $matches    Matches
+     * @param   array   $matches    Matches, with (0 => anchor tag, 1 => attributes)
      * @return  string  Cleaned string
      */
     protected function jsLinkRemoval($matches)
     {
-        $replace = preg_replace('#href=.*?(?:alert\(|alert&\#40;|javascript:|livescript:|mocha:|charset=|window\.|document\.|\.cookie|<script|<xss|data\s*:)#si',
-            '', $this->filterAttributes(str_replace(array('<', '>'), '', $matches[1])));
+        // Filter the attributes so we don't remove commented evil and it's easy
+        // to extract the entire name/value pair if evil is present
+        $attrs = $this->filterAttributes($matches[1]);
+        $replace = preg_replace('/\s*href="[^"]*?(?:alert\(|javascript:|livescript:|mocha:|charset=|window\.|document\.|\.cookie|<script|<xss|data\s*:)[^"]*"/si', '', $attrs);
         return str_replace($matches[1], $replace, $matches[0]);
     }
 
@@ -555,13 +599,15 @@ class Security
      *
      * @used-by Security::xssClean()
      *
-     * @param   array   $matches    Matches
+     * @param   array   $matches    Matches, with (0 => image tag, 1 => attributes)
      * @return  string  Cleaned string
      */
     protected function jsImgRemoval($matches)
     {
-        $filtered = $this->filterAttributes(str_replace(array('<', '>'), '', $matches[1]));
-        $replace = preg_replace('#src=.*?(?:alert\(|alert&\#40;|javascript:|livescript:|mocha:|charset=|window\.|document\.|\.cookie|<script|<xss|base64\s*,)#si', '', $filtered);
+        // Filter the attributes so we don't remove commented evil and it's easy
+        // to extract the entire name/value pair if evil is present
+        $attrs = $this->filterAttributes($matches[1]);
+        $replace = preg_replace('/\s*src="[^"]*?(?:alert\(|javascript:|livescript:|mocha:|charset=|window\.|document\.|\.cookie|<script|<xss|base64\s*,)[^"]*"/si', '', $attrs);
         return str_replace($matches[1], $replace, $matches[0]);
     }
 
@@ -570,7 +616,7 @@ class Security
      *
      * @used-by Security::xssClean()
      *
-     * @param   array   $matches    Matches
+     * @param   array   $matches    Matches, with (0 => name/value pair, 1 => quote)
      * @return  string  Cleaned string
      */
     protected function convertAttribute($matches)
@@ -581,7 +627,8 @@ class Security
     /**
      * Filter Attributes
      *
-     * Filters tag attributes for consistency and safety.
+     * Filters tag attributes for consistency and removes commented value contents
+     * so other filters can check the value for evil and remove it.
      *
      * @used-by Security::jsImgRemoval()
      * @used-by Security::jsLinkRemoval()
@@ -591,10 +638,15 @@ class Security
      */
     protected function filterAttributes($str)
     {
+        // Our regex identifies attribute/value pairs and captures the
+        // attribute name and value contents so we can clean them.
+        $reg = '/(\s*[a-z\-]+)\s*=\s*([\'"]|)((?(?!\\2).|[^<>\s\'"])*)\\2/is';
+        $str = str_replace(array('<', '>'), '', $str);
         $out = '';
-        if (preg_match_all('#\s*[a-z\-]+\s*=\s*(\042|\047)([^\\1]*?)\\1#is', $str, $matches)) {
-            foreach ($matches[0] as $match) {
-                $out .= preg_replace('#/\*.*?\*/#s', '', $match);
+        if (preg_match_all($reg, $str, $matches, PREG_SET_ORDER)) {
+            foreach ($matches as $match) {
+                // Add the name, a clean =", the filtered value, and a closing quote
+                $out .= $match[1].'="'.preg_replace('#/\*.*?\*/#s', '', $match[3]).'"';
             }
         }
 
@@ -606,13 +658,12 @@ class Security
      *
      * @used-by Security::xssClean()
      *
-     * @param   array   $matches    Matches
+     * @param   array   $matches    Matches, with (0 => html tag contents)
      * @return  string  Cleaned string
      */
     protected function decodeEntity($matches)
     {
-        global $XY;
-        return $this->entityDecode($matches[0], strtoupper($XY->config['charset']));
+        return $this->entityDecode($matches[0]);
     }
 
     /**
@@ -631,10 +682,10 @@ class Security
 
         // Validate standard character entities by adding a semicolon if missing
         // to enable the conversion of entities to ASCII later
-        $str = preg_replace('/(&\#?[0-9a-z]{2,})([\x00-\x20])*;?/i', '\\1;\\2', $str);
+        $str = preg_replace('/(&#?[0-9a-z]{2,})([\x00-\x20])*;?/i', '$1;$2', $str);
 
         // Validate UTF16 two byte encoding (x00) and add a semicolon if missing
-        $str = preg_replace('/(&\#x?)([0-9A-F]+);?/i', '\\1\\2;', $str);
+        $str = preg_replace('/(&#x?)([0-9A-F]+);?/i', '$1$2;', $str);
 
         // Un-Protect GET variables in URLs
         return str_replace($this->xssHash(), '&', $str);
@@ -653,7 +704,7 @@ class Security
         $str = str_replace(array_keys($this->never_allowed_str), $this->never_allowed_str, $str);
 
         foreach ($this->never_allowed_regex as $regex) {
-            $str = preg_replace('#'.$regex.'#is', '[removed]', $str);
+            $str = preg_replace('/'.$regex.'/is', '[removed]', $str);
         }
 
         return $str;
