@@ -205,8 +205,7 @@ class ExceptionsTest extends XyTestCase
         $heading = 'Failure Is Always An Option';
         $message = 'Something broke';
         $template = 'error_test';
-        $response = 123;
-        $header = 'ABC Error';
+        $response = 204;
         $dir = 'core';
         $class = 'TestClass';
         $docs = 'http://docserver.com/docs';
@@ -214,15 +213,13 @@ class ExceptionsTest extends XyTestCase
         $args = array('link' => $docs.'/'.$dir.'/'.$class);
         $format = 'Error Page';
 
-        // Mock Xylophone, Output, Config, and Exceptions
-        $XY = new stdClass();
-        $XY->output = new stdClass();
+        // Mock Xylophone, Config, and Exceptions
+        $XY = $this->getMock('Xylophone\core\Xylophone', null, array(), '', false);
         $XY->config = array();
         $exceptions = $this->getMock('Xylophone\core\Exceptions', array('getTrace', 'formatError'), array(), '', false);
 
         // Set up calls
         $XY->init_ob_level = ob_get_level();
-        $XY->output->status_codes = array($response => $header);
         $XY->config['docs_url'] = $docs;
         $exceptions->expects($this->once())->method('getTrace')->will($this->returnValue($trace));
         $exceptions->expects($this->once())->method('formatError')->
@@ -236,7 +233,7 @@ class ExceptionsTest extends XyTestCase
             $this->assertEquals($format, $ex->getMessage());
             $this->assertEquals(Xylophone\core\Xylophone::EXIT_ERROR, $ex->getCode());
             $this->assertEquals($response, $ex->getResponse());
-            $this->assertEquals($header, $ex->getHeader());
+            $this->assertEquals(Xylophone\core\Xylophone::$status_codes[$response], $ex->getHeader());
         }
     }
 
@@ -252,19 +249,16 @@ class ExceptionsTest extends XyTestCase
         $message = 'You got a fancy exit code';
         $template = 'error_auto';
         $response = 3;
-        $header = 'Auto Error';
         $trace = array();
         $args = array();
         $format = 'Automagic';
 
-        // Mock Xylophone, Output, and Exceptions
-        $XY = new stdClass();
-        $XY->output = new stdClass();
+        // Mock Xylophone and Exceptions
+        $XY = $this->getMock('Xylophone\core\Xylophone', null, array(), '', false);
         $exceptions = $this->getMock('Xylophone\core\Exceptions', array('getTrace', 'formatError'), array(), '', false);
 
         // Set up calls
         $XY->init_ob_level = ob_get_level();
-        $XY->output->status_codes = array(500 => $header);
         $exceptions->expects($this->once())->method('getTrace')->will($this->returnValue($trace));
         $exceptions->expects($this->once())->method('formatError')->
             with($this->equalTo($heading), $this->equalTo($message), $this->equalTo($template), $this->equalTo($args))->
@@ -277,7 +271,7 @@ class ExceptionsTest extends XyTestCase
             $this->assertEquals($format, $ex->getMessage());
             $this->assertEquals(Xylophone\core\Xylophone::EXIT__AUTO_MIN + $response, $ex->getCode());
             $this->assertEquals(500, $ex->getResponse());
-            $this->assertEquals($header, $ex->getHeader());
+            $this->assertEquals(Xylophone\core\Xylophone::$status_codes[500], $ex->getHeader());
         }
     }
 

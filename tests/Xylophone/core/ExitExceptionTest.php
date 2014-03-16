@@ -40,17 +40,14 @@ class ExitExceptionTest extends XyTestCase
     {
         global $XY;
 
-        // Mock Xylophone, Output, and ExitException
-        $XY = new stdClass();
-        $XY->output = new stdClass();
+        // Mock Xylophone and ExitException
+        $XY = $this->getMock('Xylophone\core\Xylophone', null, array(), '', false);
         $exit = $this->getMock('Xylophone\core\ExitException', null, array(), '', false);
 
         // Set up args
         $message = 'something went wrong';
         $code = 13;
         $response = 501;
-        $header = 'Not Implemented';
-        $XY->output->status_codes = array($response => $header);
 
         // Check defaults
         $this->assertEquals(500, $exit->response);
@@ -65,7 +62,7 @@ class ExitExceptionTest extends XyTestCase
         $this->assertEquals($message, $exit->getMessage());
         $this->assertEquals($code, $exit->getCode());
         $this->assertEquals($response, $exit->response);
-        $this->assertEquals($header, $exit->header);
+        $this->assertEquals(Xylophone\core\Xylophone::$status_codes[$response], $exit->header);
         $this->assertEquals($XY->init_ob_level, ob_get_level());
     }
 

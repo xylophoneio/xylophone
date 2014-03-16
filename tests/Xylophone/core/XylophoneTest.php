@@ -600,19 +600,17 @@ class XylophoneTest extends XyTestCase
         $autoload = array('config' => $autocfg, 'namespaces' => $autons, 'view_paths' => $autovp);
         $mimes = array('face' => 'white', 'speech' => false);
 
-        // Mock Xylophone, Config, Logger, and Output
+        // Mock Xylophone, Config, and Logger
         $XY = $this->getMock('Xylophone\core\Xylophone',
             array('loadClass', 'addNamespace', 'addViewPath', 'playBridge', 'playCoda', 'playChorus', 'playVerse'),
             array(), '', false);
         $cfg = $this->getMock('Xylophone\core\Config', array('setItem', 'get', 'load'), array(), '', false);
         $lgr = (object)array('name' => 'Logger');
-        $out = (object)array('name' => 'Output');
 
         // Set up Xylophone calls
-        $XY->expects($this->exactly(3))->method('loadClass')->will($this->returnValueMap(array(
+        $XY->expects($this->exactly(2))->method('loadClass')->will($this->returnValueMap(array(
             array('Config', 'core', null, null, $cfg),
-            array('Logger', 'core', null, null, $lgr),
-            array('Output', 'core', null, null, $out)
+            array('Logger', 'core', null, null, $lgr)
         )));
         $XY->expects($this->once())->method('addNamespace')->with($this->equalTo($autons));
         $XY->expects($this->once())->method('addViewPath')->with($this->equalTo($autovp));
@@ -640,8 +638,6 @@ class XylophoneTest extends XyTestCase
         $this->assertSame($cfg, $XY->config);
         $this->assertObjectHasAttribute('logger', $XY);
         $this->assertSame($lgr, $XY->logger);
-        $this->assertObjectHasAttribute('output', $XY);
-        $this->assertSame($out, $XY->output);
     }
 
     /**
@@ -652,20 +648,19 @@ class XylophoneTest extends XyTestCase
         // Set up args
         $benchmark = 'time';
         $config = false;
-        $obj = new stdClass();
 
         // Mock Xylophone, Benchmark and Config
         $XY = $this->getMock('Xylophone\core\Xylophone', array('loadClass', 'playBridge', 'playCoda'),
             array(), '', false);
         $bmk = $this->getMock('Xylophone\core\Benchmark', null, array(), '', false);
         $cfg = $this->getMock('Xylophone\core\Config', array('get'), array(), '', false);
+        $lgr = new stdClass();
 
         // Set up Xylophone calls
-        $XY->expects($this->exactly(4))->method('loadClass')->will($this->returnValueMap(array(
+        $XY->expects($this->exactly(3))->method('loadClass')->will($this->returnValueMap(array(
             array('Benchmark', 'core', null, null, $bmk),
             array('Config', 'core', null, null, $cfg),
-            array('Logger', 'core', null, null, $obj),
-            array('Output', 'core', null, null, $obj)
+            array('Logger', 'core', null, null, $lgr)
         )));
 
         $XY->expects($this->once())->method('playCoda')->will($this->returnValue(true));
@@ -694,15 +689,17 @@ class XylophoneTest extends XyTestCase
             array(), '', false);
         $ldr = (object)array('name' => 'Loader');
         $hks = $this->getMock('Xylophone\core\Hooks', array('callHook'), array(), '', false);
+        $out = (object)array('name' => 'Output');
         $utf = (object)array('name' => 'Utf8');
         $uri = (object)array('name' => 'URI');
         $rtr = $this->getMock('Xylophone\core\Router', null, array(), '', false);
 
         // Set up calls
         $XY->expects($this->once())->method('playIntro');
-        $XY->expects($this->exactly(5))->method('loadClass')->will($this->returnValueMap(array(
+        $XY->expects($this->exactly(6))->method('loadClass')->will($this->returnValueMap(array(
             array('Loader', 'core', null, null, $ldr),
             array('Hooks', 'core', null, null, $hks),
+            array('Output', 'core', null, null, $out),
             array('Utf8', 'core', null, null, $utf),
             array('URI', 'core', null, null, $uri),
             array('Router', 'core', null, null, $rtr)
@@ -716,6 +713,8 @@ class XylophoneTest extends XyTestCase
         $this->assertSame($ldr, $XY->load);
         $this->assertObjectHasAttribute('hooks', $XY);
         $this->assertSame($hks, $XY->hooks);
+        $this->assertObjectHasAttribute('output', $XY);
+        $this->assertSame($out, $XY->output);
         $this->assertObjectHasAttribute('utf8', $XY);
         $this->assertSame($utf, $XY->utf8);
         $this->assertObjectHasAttribute('uri', $XY);

@@ -85,6 +85,51 @@ class Xylophone
     /** @var    int     Initial output buffer level for reference */
     public $init_ob_level = 0;
 
+    /** @var    array   Header status codes */
+    public static $status_codes = array(
+        200 => 'OK',
+        201 => 'Created',
+        202 => 'Accepted',
+        203 => 'Non-Authoritative Information',
+        204 => 'No Content',
+        205 => 'Reset Content',
+        206 => 'Partial Content',
+
+        300 => 'Multiple Choices',
+        301 => 'Moved Permanently',
+        302 => 'Found',
+        303 => 'See Other',
+        304 => 'Not Modified',
+        305 => 'Use Proxy',
+        307 => 'Temporary Redirect',
+
+        400 => 'Bad Request',
+        401 => 'Unauthorized',
+        403 => 'Forbidden',
+        404 => 'Not Found',
+        405 => 'Method Not Allowed',
+        406 => 'Not Acceptable',
+        407 => 'Proxy Authentication Required',
+        408 => 'Request Timeout',
+        409 => 'Conflict',
+        410 => 'Gone',
+        411 => 'Length Required',
+        412 => 'Precondition Failed',
+        413 => 'Request Entity Too Large',
+        414 => 'Request-URI Too Long',
+        415 => 'Unsupported Media Type',
+        416 => 'Requested Range Not Satisfiable',
+        417 => 'Expectation Failed',
+        422 => 'Unprocessable Entity',
+
+        500 => 'Internal Server Error',
+        501 => 'Not Implemented',
+        502 => 'Bad Gateway',
+        503 => 'Service Unavailable',
+        504 => 'Gateway Timeout',
+        505 => 'HTTP Version Not Supported'
+    );
+
     /** @var    array   Relative path resolution bases */
     protected $resolve_bases = array();
 
@@ -328,7 +373,7 @@ class Xylophone
      * Play Introduction
      *
      * Prepares the basic foundation services by loading
-     * Benchmark (if enabled), Config, Logger, and Output.
+     * Benchmark (if enabled), Config, and Logger.
      * Gets constants, mime types, and autoload config.
      * Autoloads namespaces, view paths, and config items.
      *
@@ -355,9 +400,7 @@ class Xylophone
         $autoload = $this->config->get('autoload.php', 'autoload');
 
         // Load Logger so we can log messages and errors
-        // and Output, which is needed by Exception::showError()
         $this->logger = $this->loadClass('Logger', 'core');
-        $this->output = $this->loadClass('Output', 'core');
 
         // Auto-load namespaces, view paths, config files
         isset($autoload['namespaces']) && $this->addNamespace($autoload['namespaces']);
@@ -376,7 +419,7 @@ class Xylophone
      * Play Bridge
      *
      * Builds on the intro foundation by loading
-     * Loader, Hooks, UTF-8, URI, and Router.
+     * Loader, Hooks, Output, UTF-8, URI, and Router.
      * Sets routing overrides if provided.
      * Calls pre_system hook.
      *
@@ -392,7 +435,8 @@ class Xylophone
         $this->hooks = $this->loadClass('Hooks', 'core');
         $this->hooks->callHook('pre_system');
 
-        // Load UTF-8, URI, and Router, and set overrides
+        // Load Output, UTF-8, URI, and Router, and set overrides
+        $this->output = $this->loadClass('Output', 'core');
         $this->utf8 = $this->loadClass('Utf8', 'core');
         $this->uri = $this->loadClass('URI', 'core');
         $this->router = $this->loadClass('Router', 'core');

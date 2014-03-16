@@ -149,10 +149,10 @@ class Exceptions
             $exit_code = Xylophone::EXIT_ERROR;
         }
 
-        // Check Output for status code - it may not be loaded yet
-        if (isset($XY->output->status_codes[$response])) {
+        // Check for status code
+        if (isset(Xylophone::$status_codes[$response])) {
             // Get header text
-            $header = $XY->output->status_codes[$response];
+            $header = Xylophone::$status_codes[$response];
         }
         else {
             // Use generic 500 error

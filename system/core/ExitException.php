@@ -75,8 +75,8 @@ class ExitException extends \Exception
         $response === null || $this->response = $response;
         if ($header === null) {
             // If Output is loaded and the status is defined, set the header message
-            if ($response !== null && isset($XY->output->status_codes[$response])) {
-                $this->header = $XY->output->status_codes[$response];
+            if ($response !== null && isset(Xylophone::$status_codes[$response])) {
+                $this->header = Xylophone::$status_codes[$response];
             }
         }
         else {
