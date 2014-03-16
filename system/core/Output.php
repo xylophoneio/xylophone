@@ -40,6 +40,9 @@ defined('BASEPATH') OR exit('No direct script access allowed');
  */
 class Output
 {
+    /** @var    object  Xylophone framework object */
+    public $XY;
+
     /** @var    int     Cache expiration time */
     public $cache_expiration = 0;
 
@@ -97,17 +100,23 @@ class Output
         505 => 'HTTP Version Not Supported'
     );
 
+    /** @var    bool    Whether to cache view variables */
+    public $cache_vars = true;
+
+    /** @var    array   List of cached variables */
+    protected $cached_vars = array();
+
     /** @var    string  Mime-type for the current page */
     protected $mime_type = 'text/html';
 
     /** @var    bool    zLib output compression flag */
     protected $zlib_oc = false;
 
+    /** @var    array   Output buffer handler (for zlib) */
+    protected $ob_handler = null;
+
     /** @var    array   List of profiler sections */
     protected $profiler_sections = array();
-
-    /** @var    array   Stack of output buffers */
-    protected $output_stack = array('');
 
     /**
      * Constructor
@@ -118,8 +127,26 @@ class Output
      */
     public function __construct()
     {
+        // Set XY reference for loadFile() so $this->XY works in views
         global $XY;
+        $this->XY = $XY;
+
+        // Is compression requested?
         $this->zlib_oc = (bool)@ini_get('zlib.output_compression');
+        if ($this->zlib_oc === false && $XY->config['compress_output'] === true && extension_loaded('zlib')
+        && isset($_SERVER['HTTP_ACCEPT_ENCODING']) && strpos($_SERVER['HTTP_ACCEPT_ENCODING'], 'gzip') !== false) {
+            $this->ob_handler = 'ob_gzhandler';
+        }
+
+        // Buffer all output for speed boost and so the final output can be
+        // post-processed, which helps with calculating the elapsed load time.
+        // This also lets us catch any output generated through template engines.
+        ob_start($this->ob_handler);
+
+        // Check if views can use (or have to allow) short tags
+        $this->short_tags = ($XY->isPhp('5.4') || (bool)@ini_get('short_open_tag') ||
+            !$XY->config['rewrite_short_tags'] || !$XY->isUsable('eval'));
+
         $XY->logger->debug('Output Class Initialized');
     }
 
@@ -133,23 +160,22 @@ class Output
     public function getOutput()
     {
         // Return the last output on the stack
-        return end($this->output_stack);
+        return ob_get_contents();
     }
 
     /**
      * Set Output
      *
-     * Sets the output string.
+     * Sets the current output string.
      *
      * @param   string  $output Output data
      * @return  object  This object
      */
     public function setOutput($output)
     {
-        // Set buffer contents for current buffer in stack
-        // Note: stackPop() prevents emptying the array, so count will always be >= 1
-        $level = count($this->output_stack) - 1;
-        $this->output_stack[$level] = $output;
+        // Clear and replace current buffer contents
+        ob_clean();
+        echo $output;
         return $this;
     }
 
@@ -163,21 +189,180 @@ class Output
      */
     public function appendOutput($output)
     {
-        // Append output to current buffer in stack
-        // Note: stack_pop() prevents emptying the array, so count will always be >= 1
-        $level = count($this->output_stack) - 1;
-        $this->output_stack[$level] .= $output;
+        // Append output to current buffer
+        echo $output;
         return $this;
+    }
+
+    /**
+     * Stack Push
+     *
+     * Pushes a new output buffer onto the stack.
+     *
+     * @used-by Xylophone::callController()
+     *
+     * @param   string  $output Optional initial buffer contents
+     * @return  int     New stack depth
+     */
+    public function stackPush($output = '')
+    {
+        global $XY;
+
+        // Add a buffer to the output stack
+        ob_start($this->ob_handler);
+        echo $output;
+        return ob_get_level() - $XY->init_ob_level;
+    }
+
+    /**
+     * Stack Pop
+     *
+     * Pops current output buffer off the stack and returns it.
+     * Returns bottom buffer contents (without pop) if only one exists.
+     *
+     * @used-by Xylophone::callController()
+     *
+     * @param   bool    $erase  Whether to discard buffer contents
+     * @return  mixed   Current output string or NULL on discard
+     */
+    public function stackPop($discard = false)
+    {
+        global $XY;
+
+        // Check buffer level
+        if ((ob_get_level() - $XY->init_ob_level) > 1) {
+            if ($discard) {
+                // End the buffer and return NULL
+                ob_end_clean();
+                return null;
+            }
+
+            // Pop the current buffer and return it
+            return ob_get_clean();
+        }
+
+        // Nothing to pop - get contents unless discarding
+        $buffer = $discard ? null : ob_get_contents();
+
+        // Clear the buffer and return
+        ob_clean();
+        return $buffer;
+    }
+
+    /**
+     * Get Stack Level
+     *
+     * Returns number of buffer levels in final output stack
+     *
+     * @return  int     Stack depth
+     */
+    public function stackLevel()
+    {
+        global $XY;
+
+        // Just return count of buffers since we started
+        return (ob_get_level() - $XY->init_ob_level);
+    }
+
+    /**
+     * Output (or return) file contents
+     *
+     * @used-by Loader::view()
+     * @used-by Loader::file()
+     *
+     * @todo: Add chunk flushing feature
+     *
+     * @param   string  $file       File path
+     * @param   bool    $view_path  Whether to resolve path against view_paths
+     * @param   bool    $return     Whether to return file contents
+     * @param   array   $vars       Optional variables
+     * @return  mixed   Captured output if $return, otherwise void
+     */
+    public function file($file, $view_path = false, $return = false, $vars = null)
+    {
+        global $XY;
+
+        // Set the path to the requested file
+        $exists = false;
+        if ($view_path) {
+            // Ensure extension
+            pathinfo($file, PATHINFO_EXTENSION) !== '' || $file .= '.php';
+
+            // Resolve file against view paths
+            foreach ($XY->view_paths as $vwpath) {
+                $_x_path = $vwpath.$file;
+                if (file_exists($_x_path)) {
+                    // Found it - done
+                    $exists = true;
+                    break;
+                }
+            }
+            unset($vwpath);
+        }
+        else {
+            // Extract filename from path
+            $_x_path = $file;
+            $parts = explode('/', $_x_path);
+            $file = end($parts);
+            $exists = file_exists($_x_path);
+            unset($parts);
+        }
+
+        // Check if file exists
+        $exists || $XY->showError('Unable to load the requested file: '.$file);
+
+        // Clean up local vars so extracted vars don't conflict
+        $_x_return = $return;
+        unset($file);
+        unset($view_path);
+        unset($return);
+        unset($exists);
+
+        // Check for variable caching
+        if ($this->cache_vars) {
+            // Extract and cache variables
+            // You can either set variables using the dedicated vars() method
+            // or via the last parameter of this function. We'll merge the two
+            // sources and cache them so that views that are embedded within
+            // other views can have access to these variables.
+            is_array($vars) && $this->cached_vars = array_merge($this->cached_vars, $vars);
+            unset($vars);
+            extract($this->cached_vars);
+        }
+        else if (is_array($vars)) {
+            // Simply extract passed vars
+            extract($vars);
+        }
+
+        // Start a nested buffer if return is requested. Otherwise, let the
+        // output be captured by the latest buffer on the stack.
+        $_x_return && ob_start();
+
+        // Check for short tag support
+        if ($this->short_tags) {
+            // Include file directly - don't restrict with include_once
+            include($_x_path);
+        }
+        else {
+            // Translate file contents, changing short tags to echo statements
+            $_x_content = str_replace('<?=', '<?php echo ', file_get_contents($_x_path));
+            echo eval('?'.'>'.preg_replace('/;*\s*\?'.'>/', '; ?'.'>', $_x_content));
+        }
+
+        $XY->logger->debug('File loaded: '.$_x_path);
+
+        // Return the captured output if requested
+        if ($_x_return) {
+            return @ob_get_clean();
+        }
     }
 
     /**
      * Display Output
      *
-     * Processes sends the sends finalized output data to the browser along
+     * Processes and sends finalized output data to the browser along
      * with any server headers and profile data. It also stops benchmark
      * timers so the page rendering speed and memory usage can be shown.
-     *
-     * Note: All "view" data is automatically aggregated here by Loader
      *
      * @used-by Xylophone::play()
      *
@@ -188,8 +373,22 @@ class Output
     {
         global $XY;
 
-        // Set the output data
-        $output === '' && $output = implode($this->output_stack);
+        // Check for output override
+        if ($output) {
+            // Discard all our output buffers
+            for ($level = $this->stackLevel(); $level; --$level) {
+                ob_end_clean();
+            }
+        }
+        else {
+            // Collapse all our output buffers
+            for ($level = $this->stackLevel(); $level > 1; --$level) {
+                ob_end_flush();
+            }
+
+            // Get the collapsed output
+            $output = ob_get_clean();
+        }
 
         // Is minify requested?
         $XY->config['minify_output'] === true && $output = $this->minify($output, $this->mime_type);
@@ -213,15 +412,9 @@ class Output
             }
         }
 
-        // Is compression requested?
-        if ($this->zlib_oc === false && $XY->config['compress_output'] === true && extension_loaded('zlib')
-        && isset($_SERVER['HTTP_ACCEPT_ENCODING']) && strpos($_SERVER['HTTP_ACCEPT_ENCODING'], 'gzip') !== false) {
-            ob_start('ob_gzhandler');
-        }
-
         // Send any server headers
         foreach ($this->headers as $header) {
-            @header($header[0], $header[1]);
+            $this->header($header[0], $header[1]);
         }
 
         // If the routed controller object doesn't exist we know we are dealing
@@ -246,8 +439,8 @@ class Output
         }
 
         // Echo output or send to routed controller
-        if (method_exists($XY->routed, 'output')) {
-            $XY->routed->output($output);
+        if (method_exists($XY->routed, 'xyOutput')) {
+            $XY->routed->xyOutput($output);
         }
         else {
             echo $output;
@@ -258,54 +451,59 @@ class Output
     }
 
     /**
-     * Stack Push
+     * Set cached variables
      *
-     * Pushes a new output buffer onto the stack
+     * Once variables are set they become available within
+     * the controller class and its "view" files.
      *
-     * @used-by Xylophone::callController()
-     *
-     * @param   string  $output Optional initial buffer contents
-     * @return  int     New stack depth
+     * @param   string|array    $vars   Value name or array of name/value pairs
+     * @param   string          $val    Value to set, only used if $vars is a string
+     * @return  void
      */
-    public function stackPush($output = '')
+    public function vars($vars, $val = '')
     {
-        // Add a buffer to the output stack
-        $this->output_stack[] = $output;
-        return count($this->output_stack);
-    }
-
-    /**
-     * Stack Pop
-     *
-     * Pops current output buffer off the stack and returns it
-     * Returns bottom buffer contents (without pop) if only one exists
-     *
-     * @used-by Xylophone::callController()
-     *
-     * @return  string  Removed output string
-     */
-    public function stackPop()
-    {
-        if (count($this->output_stack) > 1) {
-            // Pop the topmost buffer and return it
-            return array_pop($this->output_stack);
+        // Convert to array
+        if (is_string($vars)) {
+            $vars = array($vars => $val);
+        }
+        elseif (is_object($vars)) {
+            $vars = get_object_vars($vars);
         }
 
-        // Nothing to pop - just return contents of bottom buffer
-        return $this->output_stack[0];
+        // Add vars to cache
+        if (is_array($vars) && count($vars) > 0) {
+            foreach ($vars as $key => $val) {
+                $this->cached_vars[$key] = $val;
+            }
+        }
     }
 
     /**
-     * Get Stack Level
-     *
-     * Returns number of buffer levels in final output stack
-     *
-     * @return  int     Stack depth
+     * Clear cached variables
+     * 
+     * @return  void
      */
-    public function stackLevel()
+    public function clearVars()
     {
-        // Just return count of buffers
-        return count($this->output_stack);
+        // Empty vars array
+        $this->cached_vars = array();
+    }
+
+    /**
+     * Get cached variable
+     *
+     * Returns the variable if specified and set, or all variables if none specified.
+     *
+     * @param   string  $key    Optional variable name
+     * @return  mixed   The variable or NULL if not found
+     */
+    public function getVar($key)
+    {
+        // Return all if no key, otherwise check key
+        if ($key === null) {
+            return $this->cached_vars;
+        }
+        return isset($this->cached_vars[$key]) ? $this->cached_vars[$key] : null;
     }
 
     /**
@@ -436,12 +634,12 @@ class Output
         // Check for CLI
         if ($this->isCli()) {
             // Set CLI status
-            header('Status: '.$code.' '.$text, true);
+            $this->header('Status: '.$code.' '.$text, true);
         }
         else {
             // Combine protocol, code, and text
             $proto = isset($_SERVER['SERVER_PROTOCOL']) ? $_SERVER['SERVER_PROTOCOL'] : 'HTTP/1.1';
-            header($proto.' '.$code.' '.$text, true, $code);
+            $this->header($proto.' '.$code.' '.$text, true, $code);
         }
 
         return $this;
@@ -674,10 +872,10 @@ class Output
             exit;
         }
         else {
-            header('Pragma: public');
-            header('Cache-Control: max-age='.$max_age.', public');
-            header('Expires: '.gmdate('D, d M Y H:i:s', $expiration).' GMT');
-            header('Last-modified: '.gmdate('D, d M Y H:i:s', $last_modified).' GMT');
+            $this->header('Pragma: public');
+            $this->header('Cache-Control: max-age='.$max_age.', public');
+            $this->header('Expires: '.gmdate('D, d M Y H:i:s', $expiration).' GMT');
+            $this->header('Last-modified: '.gmdate('D, d M Y H:i:s', $last_modified).' GMT');
         }
     }
 
@@ -884,6 +1082,29 @@ class Output
         // Build the file path with an MD5 hash of the full URI
         empty($uri) && $uri = $XY->config['base_url'].$XY->config['index_page'].$XY->uri->uri_string;
         return $cache_path.md5($uri);
+    }
+
+    /**
+     * Send raw HTTP header
+     *
+     * This abstraction of the header call allows overriding for unit testing
+     *
+     * @codeCoverageIgnore
+     *
+     * @param   string  $string             The header string
+     * @param   bool    $replace            Whether to replace a previous similar header
+     * @param   int     $http_response_code The HTTP response code to send
+     * @return  void
+     */
+    protected function header($string, $replace = true, $http_response_code = null)
+    {
+        // By default, we just call header() with or without the response code
+        if ($http_response_code === null) {
+            header($string, $replace);
+        }
+        else {
+            header($string, $replace, $http_response_code);
+        }
     }
 }
 
