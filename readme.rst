@@ -2,7 +2,7 @@
 What is Xylophone
 ###################
 
-Xylophone is a fork of `CodeIgniter<http://codeigniter.com/>`_ designed to improve upon the release cycle
+Xylophone is a fork of `CodeIgniter <http://codeigniter.com/>`_ designed to improve upon the release cycle
 and drivers/libraries that otherwise wouldn't make it into the official release
 while still having the ability to take security/performance updates from CodeIgniter
 and dropping the support for PHP 5.2.x.
